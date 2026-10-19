@@ -6,10 +6,11 @@ import {
 import dayjs from 'dayjs';
 import {
   LockOutlined, UnlockOutlined, StopOutlined,
-  MoreOutlined, KeyOutlined, TableOutlined, SwapOutlined,
+  MoreOutlined, KeyOutlined, TableOutlined, SwapOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import CrudTable from '../../components/common/CrudTable';
 import LabelField from '../../components/common/LabelField';
+import NextOfKinModal from './NextOfKinModal';
 import api from '../../api';
 import { hashPassword } from '../../utils/crypto';
 
@@ -47,6 +48,8 @@ export default function Members() {
   const [saving, setSaving] = useState(false);
 
   // Process (workflow transition) modal — Submitted -> Under Review -> Approved/Rejected
+  const [kinMember, setKinMember] = useState(null); // member whose next-of-kin grid is open
+
   const [processing, setProcessing] = useState(null);
   const [transitionList, setTransitionList] = useState([]);
   const [transLoading, setTransLoading] = useState(false);
@@ -265,7 +268,10 @@ export default function Members() {
         extra={toolbarExtra}
         searchPlaceholder="Search by name, ID number, phone, email, ref no..."
         extraActions={record => (
-          <Button type="link" size="small" icon={<SwapOutlined />} onClick={() => openProcess(record)} title="Process" />
+          <>
+            <Button type="link" size="small" icon={<TeamOutlined />} onClick={() => setKinMember(record)} title="Next of Kin" />
+            <Button type="link" size="small" icon={<SwapOutlined />} onClick={() => openProcess(record)} title="Process" />
+          </>
         )}
       />
 
@@ -350,6 +356,8 @@ export default function Members() {
 
         </Form>
       </Modal>
+
+      <NextOfKinModal member={kinMember} onClose={() => setKinMember(null)} />
 
       {/* Reset Password Modal */}
       <Modal

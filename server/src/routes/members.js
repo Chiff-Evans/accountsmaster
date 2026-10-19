@@ -279,4 +279,60 @@ router.post('/:id/reset-password', canEdit, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* ── Next of kin — nested under a member, same permissions as members ── */
+
+const KIN_SELECT = `
+  SELECT k.id, k.member_id, k.kin_name, k.relationship_id, k.id_number, k.phone, k.email,
+         k.created_on, k.updated_on, rel.paramater_value AS relationship_name
+  FROM member_next_of_kin k
+  LEFT JOIN parameter_values rel ON k.relationship_id = rel.id
+`;
+
+router.get('/:id/next-of-kin', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(`${KIN_SELECT} WHERE k.member_id=? ORDER BY k.id`, [req.params.id]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/:id/next-of-kin', canCreate, async (req, res, next) => {
+  try {
+    const { kin_name, relationship_id, id_number, phone, email } = req.body;
+    if (!kin_name) return res.status(400).json({ message: 'Name is required' });
+    const [[member]] = await pool.query('SELECT id FROM members WHERE id=?', [req.params.id]);
+    if (!member) return res.status(404).json({ message: 'Member not found' });
+
+    const [result] = await pool.query(
+      `INSERT INTO member_next_of_kin (member_id, kin_name, relationship_id, id_number, phone, email, created_by)
+       VALUES (?,?,?,?,?,?,?)`,
+      [req.params.id, kin_name, relationship_id || null, id_number || null, phone || null, email || null, req.user.id]
+    );
+    const [rows] = await pool.query(`${KIN_SELECT} WHERE k.id=?`, [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/next-of-kin/:kinId', canEdit, async (req, res, next) => {
+  try {
+    const { kin_name, relationship_id, id_number, phone, email } = req.body;
+    if (!kin_name) return res.status(400).json({ message: 'Name is required' });
+    const [result] = await pool.query(
+      `UPDATE member_next_of_kin SET kin_name=?, relationship_id=?, id_number=?, phone=?, email=?, updated_by=?
+       WHERE id=? AND member_id=?`,
+      [kin_name, relationship_id || null, id_number || null, phone || null, email || null, req.user.id,
+       req.params.kinId, req.params.id]
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: 'Not found' });
+    const [rows] = await pool.query(`${KIN_SELECT} WHERE k.id=?`, [req.params.kinId]);
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id/next-of-kin/:kinId', canDelete, async (req, res, next) => {
+  try {
+    await pool.query('DELETE FROM member_next_of_kin WHERE id=? AND member_id=?', [req.params.kinId, req.params.id]);
+    res.json({ message: 'Deleted' });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
