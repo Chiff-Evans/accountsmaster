@@ -62,12 +62,3 @@ body {
   right: auto !important;
   transform: translateX(-50%);
 }
-
-/* Rich text rendered inside receipt preview / print */
-.receipt-rich-text p  { margin: 0 0 2px; }
-.receipt-rich-text ul,
-.receipt-rich-text ol { margin: 0 0 2px; padding-left: 16px; }
-.receipt-rich-text li { margin: 0; }
-.receipt-rich-text strong { font-weight: 700; }
-.receipt-rich-text em     { font-style: italic; }
-.receipt-rich-text u      { text-decoration: underline; }

@@ -1,8 +1,8 @@
 const pool = require('../config/db');
 
 /* Find the initial stage of the active workflow driving a given data table
-   (e.g. 'members', 'brand_ambassadors', 'campaigns'). Mirrors the inline
-   logic already used by bookings.js/memberPortal.js for the `bookings` table. */
+   (e.g. 'members'). Used by members.js and memberPortal.js when a record
+   enters its approval workflow. */
 async function getInitialStage(dataTable) {
   const [rows] = await pool.query(
     `SELECT w.id AS workflow_id, ws.id AS stage_id, ws.stage_name, w.process_type_id, ws.assign_ref_no

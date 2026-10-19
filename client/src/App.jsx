@@ -10,15 +10,10 @@ import ProcessTypes from './pages/config/ProcessTypes';
 import RefNumbers from './pages/config/RefNumbers';
 import DashboardConfig from './pages/config/DashboardConfig';
 import Workflows from './pages/config/Workflows';
-import LoyaltyConfig from './pages/config/LoyaltyConfig';
 import Users from './pages/users/Users';
-import Payments from './pages/stock/Payments';
 import Expenditure from './pages/stock/Expenditure';
-import Salaries from './pages/stock/Salaries';
 import Members from './pages/members/Members';
 import MemberStatistics from './pages/members/MemberStatistics';
-import ReceiptConfig from './pages/stock/ReceiptConfig';
-import PublicReceipt from './pages/orders/PublicReceipt';
 import FinancialReport from './pages/reports/FinancialReport';
 import Parameters from './pages/config/Parameters';
 import Targets from './pages/config/Targets';
@@ -35,7 +30,6 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/receipt/:receipt_no" element={<PublicReceipt />} />
           <Route
             path="/*"
             element={
@@ -51,16 +45,12 @@ export default function App() {
                     <Route path="/config/ref-numbering"  element={<RefNumbers />} />
                     <Route path="/config/dashboard"      element={<DashboardConfig />} />
                     <Route path="/config/workflows"     element={<Workflows />} />
-                    <Route path="/config/loyalty"       element={<LoyaltyConfig />} />
                     <Route path="/config/parameters"    element={<Parameters />} />
                     <Route path="/config/targets"       element={<Targets />} />
                     <Route path="/users"                 element={<Users />} />
-                    <Route path="/stock/payments"        element={<Payments />} />
                     <Route path="/stock/expenditure"     element={<Expenditure />} />
-                    <Route path="/stock/salaries"        element={<Salaries />} />
                     <Route path="/members"            element={<Members />} />
                     <Route path="/members/statistics" element={<MemberStatistics />} />
-                    <Route path="/stock/receipt-config" element={<ReceiptConfig />} />
                     <Route path="/reports/finance"      element={<FinancialReport />} />
                     <Route path="/transactions"         element={<Transactions />} />
                   </Routes>

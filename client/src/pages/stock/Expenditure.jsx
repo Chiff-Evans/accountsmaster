@@ -13,7 +13,6 @@ export default function Expenditure() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [campaigns, setCampaigns] = useState([]);
   const [types, setTypes] = useState([]);      // parameter_values for "Types of Expenditures" (id 9)
   const [currencies, setCurrencies] = useState([]); // parameter_values for "Currencies" (id 8)
 
@@ -33,7 +32,6 @@ export default function Expenditure() {
 
   useEffect(() => {
     load();
-    api.get('/campaigns', { params: { limit: 500 } }).then(r => setCampaigns(r.data.data ?? r.data));
     api.get('/parameters/values', { params: { parameter_id: 9 } }).then(r => setTypes(r.data));
     api.get('/parameters/values', { params: { parameter_id: 8 } }).then(r => setCurrencies(r.data));
   }, [load]);
@@ -58,7 +56,6 @@ export default function Expenditure() {
     setEditing(r);
     setFileNo(r.file_no);
     form.setFieldsValue({
-      campaign_id: r.campaign_id,
       expenditure_type_id: r.expenditure_type_id,
       currency_id: r.currency_id,
       amount: r.amount,
@@ -89,7 +86,6 @@ export default function Expenditure() {
 
   const columns = [
     { title: 'File No', dataIndex: 'file_no', key: 'file_no', render: v => v ? <Tag color="blue">{v}</Tag> : null },
-    { title: 'Campaign', dataIndex: 'campaign_title', key: 'campaign', mobileHeaderSize: 13 },
     { title: 'Expenditure Type', dataIndex: 'expenditure_type_name', key: 'type', render: v => v ? <Tag>{v}</Tag> : '—' },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', render: v => v != null ? Number(v).toLocaleString() : '—' },
     { title: 'Date', dataIndex: 'expenditure_date', key: 'date', render: v => v ? dayjs(v).format('D MMM YYYY') : '—' },
@@ -111,7 +107,7 @@ export default function Expenditure() {
         onSearch={v => { setSearch(v); setPage(1); }}
         onRefresh={load}
         pagination={{ current: page, total, pageSize: limit, onChange: (p, ps) => { setPage(p); setLimit(ps); }, showTotal: t => `${t} records` }}
-        searchPlaceholder="Search by file no, campaign or reference..."
+        searchPlaceholder="Search by file no, type, reference or comments..."
       />
 
       <Modal
@@ -127,14 +123,6 @@ export default function Expenditure() {
         <Form form={form} layout="vertical">
           <LabelField label="File No">
             <Input readOnly value={fileNo || '—'} style={{ color: '#1677ff', fontWeight: 600, marginBottom: 20 }} />
-          </LabelField>
-
-          <LabelField label="Campaign" required>
-            <Form.Item name="campaign_id" rules={[{ required: true }]} style={{ marginBottom: 20 }}>
-              <Select showSearch optionFilterProp="children">
-                {campaigns.map(c => <Select.Option key={c.id} value={c.id}>{c.campaign_title}</Select.Option>)}
-              </Select>
-            </Form.Item>
           </LabelField>
 
           <LabelField label="Expenditure" required>
