@@ -30,6 +30,7 @@ app.use('/api/parameters',    require('./routes/parameters'));
 app.use('/api/expenditure',   require('./routes/expenditure'));
 app.use('/api/payments',      require('./routes/payments'));
 app.use('/api/brand-ambassadors', require('./routes/brandAmbassadors'));
+app.use('/api/transactions',  require('./routes/transactions'));
 app.use('/api/campaigns',     require('./routes/campaigns'));
 app.use('/api/campaign-proofs', require('./routes/campaignProofs'));
 app.use('/api/salaries',        require('./routes/salaries'));

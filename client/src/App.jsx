@@ -20,8 +20,7 @@ import ReceiptConfig from './pages/stock/ReceiptConfig';
 import PublicReceipt from './pages/orders/PublicReceipt';
 import CampaignsReport from './pages/reports/CampaignsReport';
 import Parameters from './pages/config/Parameters';
-import Campaigns from './pages/campaigns/Campaigns';
-import ProofReview from './pages/campaigns/ProofReview';
+import Transactions from './pages/transactions/Transactions';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -59,8 +58,7 @@ export default function App() {
                     <Route path="/members"            element={<Members />} />
                     <Route path="/stock/receipt-config" element={<ReceiptConfig />} />
                     <Route path="/reports/campaigns"    element={<CampaignsReport />} />
-                    <Route path="/campaigns"            element={<Campaigns />} />
-                    <Route path="/campaigns/proof-review" element={<ProofReview />} />
+                    <Route path="/transactions"         element={<Transactions />} />
                   </Routes>
                 </AppLayout>
               </ProtectedRoute>
