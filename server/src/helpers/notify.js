@@ -16,9 +16,9 @@ const NOTIFICATION_TYPES = [
   { key: 'registration_reviewed', audience: 'brand_ambassador', label: 'Registration reviewed',
     description: 'When your brand ambassador registration is approved or rejected.' },
 
-  // Member (business) portal
-  { key: 'campaign_stage_changed', audience: 'member', label: 'Campaign status updates',
-    description: "When one of your campaigns' status changes." },
+  // Member portal
+  { key: 'transaction_recorded', audience: 'member', label: 'Transaction recorded',
+    description: 'When a deposit, withdrawal or other transaction is recorded on your account.' },
   { key: 'registration_reviewed', audience: 'member', label: 'Registration reviewed',
     description: 'When your member registration is approved or rejected.' },
 

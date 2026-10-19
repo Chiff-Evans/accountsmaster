@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { App, Card, Form, Input, Select, Button, Modal, Typography, Tag, Switch } from 'antd';
-import { UserOutlined, LockOutlined, LogoutOutlined, BellOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, LogoutOutlined, BellOutlined, IdcardOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import FieldWrapper from '../components/FieldWrapper';
 import api from '../api';
 import { hashPassword } from '../utils/crypto';
+import { money, fmtDate } from '../utils/format';
 
 const STATUS_COLOR = { active: 'green', locked: 'orange', suspended: 'red', revoked: 'volcano' };
 
@@ -19,30 +20,17 @@ export default function Profile() {
   const [savingPwd,     setSavingPwd]     = useState(false);
   const [pwdOpen,       setPwdOpen]       = useState(false);
 
-  const [industries, setIndustries]   = useState([]); // parameter_id 14
-  const [countries, setCountries]     = useState([]); // parameter_id 15
-  const [counties, setCounties]       = useState([]); // parameter_id 16
-  const [subcounties, setSubcounties] = useState([]); // parameter_id 17
-  const [genders, setGenders]         = useState([]); // parameter text_id 'genders'
+  const [genders, setGenders] = useState([]); // parameter text_id 'genders'
 
-  const displayName = member?.member_name || `${member?.firstname ?? ''} ${member?.lastname ?? ''}`.trim();
+  const displayName = member?.member_name || '';
 
   useEffect(() => {
-    api.get('/parameters/values', { params: { parameter_id: 14 } }).then(r => setIndustries(r.data));
-    api.get('/parameters/values', { params: { parameter_id: 15 } }).then(r => setCountries(r.data));
-    api.get('/parameters/values', { params: { parameter_id: 16 } }).then(r => setCounties(r.data));
-    api.get('/parameters/values', { params: { parameter_id: 17 } }).then(r => setSubcounties(r.data));
     api.get('/parameters/values', { params: { text_id: 'genders' } }).then(r => setGenders(r.data));
   }, []);
 
-  const selectedCountyId = Form.useWatch('county_id', profileForm);
-  const subcountiesForCounty = subcounties.filter(s => s.parent_value_id === selectedCountyId);
-
   useEffect(() => {
     if (member) profileForm.setFieldsValue({
-      member_name: member.member_name, industry_id: member.industry_id,
-      country_id:  member.country_id,  county_id:   member.county_id, subcounty_id: member.subcounty_id,
-      gender_id:   member.gender_id,   phone:       member.phone,    email:        member.email,
+      gender_id: member.gender_id, phone: member.phone, email: member.email,
     });
   }, [member]);
 
@@ -104,59 +92,42 @@ export default function Profile() {
         </div>
         {/* Row 2: badges */}
         <div style={{ display: 'flex', gap: 6 }}>
-          <Tag color="white" style={{ color: '#1677ff', fontWeight: 600, margin: 0 }}>{member?.member_ref_no}</Tag>
+          {member?.member_ref_no && <Tag color="white" style={{ color: '#1677ff', fontWeight: 600, margin: 0 }}>{member.member_ref_no}</Tag>}
           <Tag color={STATUS_COLOR[member?.status] || 'green'} style={{ margin: 0 }}>{member?.status}</Tag>
         </div>
       </Card>
 
-      {/* Edit profile */}
-      <Card size="small" title={<><UserOutlined /> Personal Details</>} style={styles.card}>
-        <Form form={profileForm} layout="vertical" style={{ marginTop: 8 }}>
+      {/* Member details — maintained by the office */}
+      <Card size="small" title={<><IdcardOutlined /> Membership</>} style={styles.card}>
+        {[
+          ['Member No.', member?.member_ref_no],
+          ['Position',   member?.position_name],
+          ['ID Number',  member?.id_number],
+          ['Reg Date',   member?.reg_date ? fmtDate(member.reg_date) : null],
+          ['Reg Fee',    member?.reg_fee != null ? money(member.reg_fee) : null],
+        ].map(([label, value]) => (
+          <div key={label} style={styles.row}>
+            <span style={{ color: '#8c8c8c' }}>{label}</span>
+            <span style={{ fontWeight: 600, textAlign: 'right' }}>{value || '—'}</span>
+          </div>
+        ))}
+        <Typography.Text type="secondary" style={{ display: 'block', fontSize: 11, marginTop: 8 }}>
+          To correct these details, please contact the office.
+        </Typography.Text>
+      </Card>
 
-          <FieldWrapper label="Member Name" required>
-            <Form.Item name="member_name" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 0 }}>
+      {/* Contact details — the member keeps these current */}
+      <Card size="small" title={<><UserOutlined /> Contact Details</>} style={styles.card}>
+        <Form form={profileForm} layout="vertical" style={{ marginTop: 8 }}>
+          <FieldWrapper label="Phone No.">
+            <Form.Item name="phone" style={{ marginBottom: 0 }}>
               <Input variant="borderless" style={{ padding: '2px 0' }} />
             </Form.Item>
           </FieldWrapper>
 
-          <FieldWrapper label="Industry">
-            <Form.Item name="industry_id" style={{ marginBottom: 0 }}>
-              <Select variant="borderless" allowClear showSearch optionFilterProp="children" style={{ marginLeft: -7, width: 'calc(100% + 7px)' }}>
-                {industries.map(i => <Select.Option key={i.id} value={i.id}>{i.paramater_value}</Select.Option>)}
-              </Select>
-            </Form.Item>
-          </FieldWrapper>
-
-          <FieldWrapper label="Country">
-            <Form.Item name="country_id" style={{ marginBottom: 0 }}>
-              <Select variant="borderless" allowClear showSearch optionFilterProp="children" style={{ marginLeft: -7, width: 'calc(100% + 7px)' }}>
-                {countries.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
-              </Select>
-            </Form.Item>
-          </FieldWrapper>
-
-          <FieldWrapper label="County">
-            <Form.Item name="county_id" style={{ marginBottom: 0 }}>
-              <Select
-                variant="borderless" allowClear showSearch optionFilterProp="children"
-                style={{ marginLeft: -7, width: 'calc(100% + 7px)' }}
-                onChange={() => profileForm.setFieldValue('subcounty_id', undefined)}
-              >
-                {counties.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
-              </Select>
-            </Form.Item>
-          </FieldWrapper>
-
-          <FieldWrapper label="Sub-County">
-            <Form.Item name="subcounty_id" style={{ marginBottom: 0 }}>
-              <Select
-                variant="borderless" allowClear showSearch optionFilterProp="children"
-                style={{ marginLeft: -7, width: 'calc(100% + 7px)' }}
-                disabled={!selectedCountyId}
-                placeholder={selectedCountyId ? 'Select sub-county' : 'Select a county first'}
-              >
-                {subcountiesForCounty.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
-              </Select>
+          <FieldWrapper label="Email">
+            <Form.Item name="email" rules={[{ type: 'email', message: 'Enter a valid email' }]} style={{ marginBottom: 0 }}>
+              <Input variant="borderless" style={{ padding: '2px 0' }} />
             </Form.Item>
           </FieldWrapper>
 
@@ -165,18 +136,6 @@ export default function Profile() {
               <Select variant="borderless" allowClear style={{ marginLeft: -7, width: 'calc(100% + 7px)' }}>
                 {genders.map(g => <Select.Option key={g.id} value={g.id}>{g.paramater_value}</Select.Option>)}
               </Select>
-            </Form.Item>
-          </FieldWrapper>
-
-          <FieldWrapper label="Phone">
-            <Form.Item name="phone" style={{ marginBottom: 0 }}>
-              <Input variant="borderless" style={{ padding: '2px 0' }} />
-            </Form.Item>
-          </FieldWrapper>
-
-          <FieldWrapper label="Email">
-            <Form.Item name="email" rules={[{ type: 'email' }]} style={{ marginBottom: 0 }}>
-              <Input variant="borderless" style={{ padding: '2px 0' }} />
             </Form.Item>
           </FieldWrapper>
 
@@ -196,13 +155,13 @@ export default function Profile() {
         <Card size="small" title={<><BellOutlined /> Notifications</>} style={styles.card}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontWeight: 500, fontSize: 14 }}>Order updates</div>
+              <div style={{ fontWeight: 500, fontSize: 14 }}>Account updates</div>
               <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
                 {pushStatus === 'active'   && 'Push notifications are enabled'}
                 {pushStatus === 'denied'   && 'Blocked — allow in browser settings'}
                 {pushStatus === 'subscribing' && 'Enabling…'}
                 {pushStatus === 'error'    && 'Failed — tap to retry'}
-                {(pushStatus === 'idle' || pushStatus === 'unsupported') && 'Get notified when your order moves'}
+                {(pushStatus === 'idle' || pushStatus === 'unsupported') && 'Get notified when a transaction is recorded'}
               </div>
             </div>
             <Switch
@@ -266,4 +225,5 @@ const styles = {
     fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 10,
   },
   card: { borderRadius: 12, marginBottom: 12, boxShadow: '0 1px 6px rgba(0,0,0,0.07)' },
+  row: { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 0', borderBottom: '1px solid #f5f5f5', fontSize: 13 },
 };

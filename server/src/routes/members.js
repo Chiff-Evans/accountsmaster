@@ -15,7 +15,7 @@ const canDelete = requirePermission('/members', 'can_delete');
 
 const LIST_SELECT = `
   SELECT c.id, c.member_ref_no, c.member_name, c.firstname, c.lastname, c.position_id, c.id_number,
-         c.gender_id, c.phone, c.email, DATE_FORMAT(c.reg_date, '%Y-%m-%d') AS reg_date, c.reg_fee, c.other_details, c.username, c.status,
+         c.gender_id, c.phone, c.email, DATE_FORMAT(c.reg_date, '%Y-%m-%d') AS reg_date, c.reg_fee, c.other_details, c.username, (c.password_hash IS NOT NULL) AS has_password, c.status,
          c.loyalty_points, c.workflow_id, c.workflow_stage_id, c.created_at, c.updated_at,
          pos.paramater_value AS position_name, gen.paramater_value AS gender_name,
          ws.stage_name, ws.stage_color, ws.responsible_group
@@ -267,15 +267,32 @@ router.post('/:id/transition', canEdit, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* POST /members/:id/reset-password */
-router.post('/:id/reset-password', canEdit, async (req, res, next) => {
+/* POST /members/:id/portal-access — set the member's portal username and
+   (re)set their password. A password is required the first time; after
+   that it's optional, so staff can change just the username. */
+router.post('/:id/portal-access', canEdit, async (req, res, next) => {
   try {
+    const username = (req.body.username || '').trim();
     const { new_password } = req.body;
-    if (!new_password || new_password.length < 6)
+    if (!username) return res.status(400).json({ message: 'Username is required' });
+    if (new_password && new_password.length < 6)
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
-    const hash = await bcrypt.hash(new_password, 10);
-    await pool.query('UPDATE members SET password_hash=? WHERE id=?', [hash, req.params.id]);
-    res.json({ message: 'Password reset successfully' });
+
+    const [[member]] = await pool.query('SELECT id, password_hash FROM members WHERE id=?', [req.params.id]);
+    if (!member) return res.status(404).json({ message: 'Not found' });
+    if (!member.password_hash && !new_password)
+      return res.status(400).json({ message: 'Set a password to give this member portal access' });
+
+    const [[taken]] = await pool.query('SELECT id FROM members WHERE username=? AND id<>?', [username, req.params.id]);
+    if (taken) return res.status(409).json({ message: 'Username already taken' });
+
+    if (new_password) {
+      const hash = await bcrypt.hash(new_password, 10);
+      await pool.query('UPDATE members SET username=?, password_hash=? WHERE id=?', [username, hash, req.params.id]);
+    } else {
+      await pool.query('UPDATE members SET username=? WHERE id=?', [username, req.params.id]);
+    }
+    res.json({ message: 'Portal access updated' });
   } catch (err) { next(err); }
 });
 

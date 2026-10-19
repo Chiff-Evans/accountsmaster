@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { App as AntdApp, ConfigProvider, notification } from 'antd';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
+import { CONFIG } from './config';
 import './index.css';
 
 registerSW({

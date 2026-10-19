@@ -1,68 +1,15 @@
 const router  = require('express').Router();
-const path    = require('path');
-const fs      = require('fs');
-const multer  = require('multer');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const pool    = require('../config/db');
 const { generateRefNo } = require('../helpers/refNumber');
 const { getInitialStage, recordHistory } = require('../helpers/workflow');
-const { notify, notifyAdmins, mountNotificationRoutes } = require('../helpers/notify');
+const { notifyAdmins, mountNotificationRoutes } = require('../helpers/notify');
 const { mountPushRoutes } = require('../utils/pushNotify');
 const { sendVerificationCode, verifyCode, isEmailVerified } = require('../helpers/emailVerification');
+const { depositSum, withdrawalSum } = require('../helpers/transactionTypes');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const logoStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/members');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => cb(null, `member_${Date.now()}${path.extname(file.originalname)}`),
-});
-const uploadLogo = multer({
-  storage: logoStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_, file, cb) => file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Images only')),
-});
-
-const campaignStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/campaigns');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `campaign_${file.fieldname}_${Date.now()}_${Math.round(Math.random() * 1e9)}${ext}`);
-  },
-});
-const ATTACHMENT_ALLOWED = /\.(pdf|docx?|xlsx?|pptx?|csv|txt|zip|jpe?g|png|gif|webp)$/i;
-const campaignFileFilter = (req, file, cb) => {
-  if (file.fieldname === 'posters') {
-    if (!file.mimetype.startsWith('image/')) {
-      const err = new Error('Posters must be image files (JPG, PNG, WEBP, GIF)');
-      err.status = 400;
-      return cb(err);
-    }
-    return cb(null, true);
-  }
-  if (!ATTACHMENT_ALLOWED.test(file.originalname)) {
-    const err = new Error('Attachments must be an image, PDF, Word, Excel, PowerPoint, CSV, TXT or ZIP file');
-    err.status = 400;
-    return cb(err);
-  }
-  cb(null, true);
-};
-const uploadCampaignFiles = multer({ storage: campaignStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: campaignFileFilter })
-  .fields([{ name: 'posters', maxCount: 10 }, { name: 'attachments', maxCount: 10 }]);
-
-function parseJsonArray(v) {
-  if (!v) return [];
-  if (Array.isArray(v)) return v;
-  try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
-}
 
 const MEMBER_SECRET = process.env.MEMBER_JWT_SECRET || 'sm-member-portal-2026';
 
@@ -99,9 +46,21 @@ function issueToken(id, rememberMe = false) {
   return jwt.sign({ id, type: 'member' }, MEMBER_SECRET, { expiresIn });
 }
 
-const SAFE_FIELDS = `id,member_ref_no,member_type_id,member_name,firstname,lastname,gender_id,industry_id,
-  country_id,county_id,subcounty_id,logo_url,phone,email,username,status,loyalty_points,
-  workflow_id,workflow_stage_id,created_at`.replace(/\s+/g, ' ');
+/* What a member may see about themselves. Position, ID number, reg date
+   and reg fee are staff-maintained, so the portal shows them read-only. */
+const PROFILE_SELECT = `
+  SELECT m.id, m.member_ref_no, m.member_name, m.position_id, pos.paramater_value AS position_name,
+         m.id_number, m.gender_id, gen.paramater_value AS gender_name, m.phone, m.email,
+         DATE_FORMAT(m.reg_date, '%Y-%m-%d') AS reg_date, m.reg_fee, m.username, m.status, m.created_at
+  FROM members m
+  LEFT JOIN parameter_values pos ON m.position_id = pos.id
+  LEFT JOIN parameter_values gen ON m.gender_id = gen.id
+`;
+
+const getProfile = async id => {
+  const [[member]] = await pool.query(`${PROFILE_SELECT} WHERE m.id=?`, [id]);
+  return member;
+};
 
 /* ════════════════════════════════════════
    PUBLIC — no auth
@@ -115,10 +74,8 @@ router.get('/business-info', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* GET /api/member-portal/parameters/values?parameter_id=X — public
-   read-only lookup used to populate dropdowns (Member Types, Industry,
-   Country/County/Sub-County, Campaign Types, Duration Units, Target
-   Audience, etc.) both before and after login. */
+/* GET /api/member-portal/parameters/values?text_id=X (or parameter_id=X) —
+   public read-only lookup for dropdowns, before and after login. */
 router.get('/parameters/values', async (req, res, next) => {
   try {
     const { parameter_id, text_id } = req.query;
@@ -156,17 +113,17 @@ router.post('/auth/verify-code', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* POST /api/member-portal/auth/register — registers a Member. Goes
-   straight into the Member Registration Approval workflow; the account
-   stays `inactive` (can't log in) until MIS staff approves it. */
-router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) => {
+/* POST /api/member-portal/auth/register — self-registration. Goes straight
+   into the Member Registration Approval workflow; the account stays
+   `inactive` (can't log in) until staff approve it. Position defaults to
+   the Positions parameter's default value; reg fee is left for staff. */
+router.post('/auth/register', async (req, res, next) => {
   try {
-    const { member_type_id, member_name, industry_id, country_id, county_id, subcounty_id,
-            gender_id, phone, username, password } = req.body;
+    const { member_name, id_number, gender_id, phone, username, password } = req.body;
     const email = (req.body.email || '').trim().toLowerCase();
 
     if (!member_name || !username || !password)
-      return res.status(400).json({ message: 'Member name, username and password are required' });
+      return res.status(400).json({ message: 'Name, username and password are required' });
     if (password.length < 6)
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     if (!EMAIL_RE.test(email))
@@ -174,16 +131,18 @@ router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) 
     if (!(await isEmailVerified('member', email)))
       return res.status(400).json({ message: 'Please verify your email address before registering' });
 
-    const [dup] = await pool.query(
-      'SELECT id FROM members WHERE username=?', [sanitize(username)]
-    );
+    const [dup] = await pool.query('SELECT id FROM members WHERE username=?', [sanitize(username)]);
     if (dup.length)
       return res.status(409).json({ message: 'Username already taken' });
 
+    const [[defaultPosition]] = await pool.query(
+      `SELECT pv.id FROM parameter_values pv JOIN parameters p ON p.id = pv.parameter_id
+       WHERE p.text_id = 'parties-positions' AND pv.is_default = 1 AND pv.is_active = 1 LIMIT 1`
+    );
+
     const hash = await bcrypt.hash(password, 10);
-    const logo_url = req.file ? `/uploads/members/${req.file.filename}` : null;
     const initStage = await getInitialStage('members');
-    // A file number is only assigned immediately if the initial stage is
+    // A ref number is only assigned immediately if the initial stage is
     // configured to do so (Workflow config → stage → "Assign File Number");
     // otherwise it's left null and assigned later, on approval.
     const ref = initStage?.assign_ref_no ? await generateRefNo('member_registration') : null;
@@ -191,12 +150,10 @@ router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) 
 
     const [r] = await pool.query(
       `INSERT INTO members
-         (member_ref_no, member_type_id, member_name, firstname, lastname, gender_id, industry_id,
-          country_id, county_id, subcounty_id, logo_url, phone, email, username, password_hash,
-          status, workflow_id, workflow_stage_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [ref, member_type_id || null, name, name, '', gender_id || null, industry_id || null,
-       country_id || null, county_id || null, subcounty_id || null, logo_url,
+         (member_ref_no, member_name, firstname, lastname, position_id, id_number, gender_id, phone, email,
+          reg_date, username, password_hash, status, workflow_id, workflow_stage_id)
+       VALUES (?,?,?,?,?,?,?,?,?,CURDATE(),?,?,?,?,?)`,
+      [ref, name, name, '', defaultPosition?.id || null, sanitize(id_number), gender_id || null,
        sanitize(phone), sanitize(email), sanitize(username), hash,
        'inactive', initStage?.workflow_id || null, initStage?.stage_id || null]
     );
@@ -209,9 +166,6 @@ router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) 
       });
     }
 
-    const [[member]] = await pool.query(
-      `SELECT ${SAFE_FIELDS} FROM members WHERE id=?`, [r.insertId]
-    );
     await notifyAdmins('member_registered', {
       title: 'New member registration',
       body: `${name}${ref ? ` (${ref})` : ''} registered and is awaiting review.`,
@@ -219,7 +173,7 @@ router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) 
     });
     res.status(201).json({
       message: 'Registration submitted. Your account will be reviewed before you can log in.',
-      member,
+      member: await getProfile(r.insertId),
     });
   } catch (err) { next(err); }
 });
@@ -232,9 +186,7 @@ router.post('/auth/login', async (req, res, next) => {
       return res.status(400).json({ message: 'Username and password are required' });
 
     const [rows] = await pool.query(
-      `SELECT id,username,password_hash,status,member_name,firstname,lastname,
-              gender_id,phone,email,member_ref_no
-       FROM members WHERE username=?`,
+      'SELECT id, password_hash, status FROM members WHERE username=?',
       [sanitize(username)]
     );
     if (!rows.length || !rows[0].password_hash)
@@ -251,8 +203,7 @@ router.post('/auth/login', async (req, res, next) => {
     if (!await bcrypt.compare(password, c.password_hash))
       return res.status(401).json({ message: 'Invalid username or password' });
 
-    const { password_hash, ...memberData } = c;
-    res.json({ token: issueToken(c.id, !!remember_me), member: memberData });
+    res.json({ token: issueToken(c.id, !!remember_me), member: await getProfile(c.id) });
   } catch (err) { next(err); }
 });
 
@@ -262,45 +213,26 @@ router.post('/auth/login', async (req, res, next) => {
 router.use(auth);
 mountNotificationRoutes(router, 'member', req => req.member.id);
 
-/* GET /api/member-portal/loyalty-status — is the loyalty programme currently active? (member-safe, no other config exposed) */
-router.get('/loyalty-status', async (req, res, next) => {
-  try {
-    const [[row]] = await pool.query('SELECT is_active FROM loyalty_config WHERE id=1 LIMIT 1');
-    res.json({ is_active: !!row?.is_active });
-  } catch (err) { next(err); }
-});
-
 /* GET /api/member-portal/auth/me */
 router.get('/auth/me', async (req, res, next) => {
-  try {
-    const [[member]] = await pool.query(
-      `SELECT ${SAFE_FIELDS} FROM members WHERE id=?`, [req.member.id]
-    );
-    res.json(member);
-  } catch (err) { next(err); }
+  try { res.json(await getProfile(req.member.id)); } catch (err) { next(err); }
 });
 
-/* PUT /api/member-portal/profile */
-router.put('/profile', uploadLogo.single('logo'), async (req, res, next) => {
+/* PUT /api/member-portal/profile — members can keep their own contact
+   details current; name, ID number, position and registration details
+   are maintained by staff. */
+router.put('/profile', async (req, res, next) => {
   try {
-    const { member_name, industry_id, country_id, county_id, subcounty_id, gender_id, phone, email } = req.body;
-    if (!member_name)
-      return res.status(400).json({ message: 'Member name is required' });
-
-    const [[existing]] = await pool.query('SELECT logo_url FROM members WHERE id=?', [req.member.id]);
-    const logo_url = req.file ? `/uploads/members/${req.file.filename}` : existing?.logo_url;
-    const name = sanitize(member_name);
+    const { gender_id, phone } = req.body;
+    const email = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+    if (email && !EMAIL_RE.test(email))
+      return res.status(400).json({ message: 'Enter a valid email address' });
 
     await pool.query(
-      `UPDATE members SET member_name=?,firstname=?,industry_id=?,country_id=?,county_id=?,
-         subcounty_id=?,logo_url=?,gender_id=?,phone=?,email=? WHERE id=?`,
-      [name, name, industry_id || null, country_id || null, county_id || null, subcounty_id || null,
-       logo_url, gender_id || null, sanitize(phone), sanitize(email), req.member.id]
+      'UPDATE members SET gender_id=?, phone=?, email=? WHERE id=?',
+      [gender_id || null, sanitize(phone), sanitize(email), req.member.id]
     );
-    const [[member]] = await pool.query(
-      `SELECT ${SAFE_FIELDS} FROM members WHERE id=?`, [req.member.id]
-    );
-    res.json(member);
+    res.json(await getProfile(req.member.id));
   } catch (err) { next(err); }
 });
 
@@ -329,166 +261,89 @@ router.post('/auth/change-password', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* ── CAMPAIGNS ── */
-
-const CAMPAIGN_SELECT = `
-  SELECT c.*,
-         ct.paramater_value  AS campaign_type_name,
-         du.paramater_value  AS duration_unit_name,
-         tco.paramater_value AS target_country_name, tcy.paramater_value AS target_county_name,
-         tsc.paramater_value AS target_subcounty_name,
-         ws.stage_name, ws.stage_color
-  FROM campaigns c
-  LEFT JOIN parameter_values ct  ON c.campaign_type_id = ct.id
-  LEFT JOIN parameter_values du  ON c.duration_unit_id = du.id
-  LEFT JOIN parameter_values tco ON c.target_country_id = tco.id
-  LEFT JOIN parameter_values tcy ON c.target_county_id = tcy.id
-  LEFT JOIN parameter_values tsc ON c.target_subcounty_id = tsc.id
-  LEFT JOIN workflow_stages ws   ON c.workflow_stage_id = ws.id
-`;
-
-function withCampaignJson(row) {
-  if (!row) return row;
-  return { ...row, posters: parseJsonArray(row.posters), attachments: parseJsonArray(row.attachments), target_audience: parseJsonArray(row.target_audience) };
-}
-
-/* GET /api/member-portal/campaigns — the logged-in member's own campaigns */
-router.get('/campaigns', async (req, res, next) => {
+/* ── STATEMENT — the member's standing against the active target, worked
+   out exactly like Stake-Holders > Statistics in the MIS:
+     net = deposits - withdrawals, balance = max(target - net, 0),
+     overpayment = max(net - target, 0). ── */
+router.get('/statement', async (req, res, next) => {
   try {
-    const [rows] = await pool.query(`${CAMPAIGN_SELECT} WHERE c.member_id=? ORDER BY c.created_on DESC`, [req.member.id]);
-    res.json(rows.map(withCampaignJson));
-  } catch (err) { next(err); }
-});
-
-/* GET /api/member-portal/campaigns/:id */
-router.get('/campaigns/:id', async (req, res, next) => {
-  try {
-    const [rows] = await pool.query(`${CAMPAIGN_SELECT} WHERE c.id=? AND c.member_id=?`, [req.params.id, req.member.id]);
-    if (!rows.length) return res.status(404).json({ message: 'Campaign not found' });
-    res.json(withCampaignJson(rows[0]));
-  } catch (err) { next(err); }
-});
-
-/* POST /api/member-portal/campaigns — create a campaign; enters the
-   Campaign Approval Workflow at its initial ("Draft") stage. */
-router.post('/campaigns', uploadCampaignFiles, async (req, res, next) => {
-  try {
-    const { campaign_title, campaign_type_id, description, website_link, whatsapp_number, promo_code,
-            duration_value, duration_unit_id, target_country_id, target_county_id, target_subcounty_id,
-            budget, comments } = req.body;
-    if (!campaign_title) return res.status(400).json({ message: 'Campaign title is required' });
-
-    const posters = JSON.stringify((req.files?.posters || []).map(f => `/uploads/campaigns/${f.filename}`));
-    const attachments = JSON.stringify((req.files?.attachments || []).map(f => `/uploads/campaigns/${f.filename}`));
-    const target_audience = JSON.stringify(parseJsonArray(req.body.target_audience));
-    const initStage = await getInitialStage('campaigns');
-    // A file number is only assigned immediately if the initial stage is
-    // configured to do so (Workflow config → stage → "Assign File Number");
-    // otherwise it's left null and assigned later, on approval.
-    const file_no = initStage?.assign_ref_no ? await generateRefNo('campaign_creation') : null;
-
-    const [r] = await pool.query(
-      `INSERT INTO campaigns
-         (file_no, member_id, campaign_title, campaign_type_id, description, posters, attachments,
-          website_link, whatsapp_number, promo_code, duration_value, duration_unit_id, target_audience,
-          target_country_id, target_county_id, target_subcounty_id, budget, comments,
-          workflow_id, workflow_stage_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [file_no, req.member.id, sanitize(campaign_title), campaign_type_id || null, sanitize(description),
-       posters, attachments, sanitize(website_link), sanitize(whatsapp_number), sanitize(promo_code),
-       duration_value || null, duration_unit_id || null, target_audience, target_country_id || null,
-       target_county_id || null, target_subcounty_id || null, budget || null, sanitize(comments),
-       initStage?.workflow_id || null, initStage?.stage_id || null]
+    const [[target]] = await pool.query(
+      `SELECT target_amount, DATE_FORMAT(target_date, '%Y-%m-%d') AS target_date
+       FROM targets WHERE is_active = 1 LIMIT 1`
+    );
+    const [[tx]] = await pool.query(
+      `SELECT ${depositSum()} AS deposits, ${withdrawalSum()} AS withdrawals, COUNT(t.id) AS transaction_count,
+              DATE_FORMAT(MAX(t.transaction_date), '%Y-%m-%d') AS last_transaction_date
+       FROM transactions t
+       LEFT JOIN parameter_values tt ON t.transaction_type_id = tt.id
+       WHERE t.member_id = ?`,
+      [req.member.id]
     );
 
-    if (initStage) {
-      await recordHistory({
-        workflowId: initStage.workflow_id, processTypeId: initStage.process_type_id,
-        entityType: 'campaign', entityId: r.insertId, entityRef: file_no,
-        toStageId: initStage.stage_id, notes: `Created via member portal (member #${req.member.id})`,
-      });
-    }
+    // cents, so the figures never pick up floating-point drift
+    const c = v => Math.round(Number(v || 0) * 100);
+    const deposits = c(tx.deposits);
+    const withdrawals = c(tx.withdrawals);
+    const net = deposits - withdrawals;
+    const targetCents = target ? c(target.target_amount) : null;
 
-    const [[campaign]] = await pool.query(`${CAMPAIGN_SELECT} WHERE c.id=?`, [r.insertId]);
-    res.status(201).json(withCampaignJson(campaign));
-  } catch (err) { next(err); }
-});
-
-/* PUT /api/member-portal/campaigns/:id — edit own campaign while still in Draft */
-router.put('/campaigns/:id', uploadCampaignFiles, async (req, res, next) => {
-  try {
-    const [[own]] = await pool.query(
-      `SELECT c.id, c.posters, c.attachments, ws.stage_name, ws.is_terminal
-       FROM campaigns c LEFT JOIN workflow_stages ws ON c.workflow_stage_id = ws.id
-       WHERE c.id=? AND c.member_id=?`,
-      [req.params.id, req.member.id]
-    );
-    if (!own) return res.status(404).json({ message: 'Campaign not found' });
-    if (own.stage_name && own.stage_name !== 'Draft')
-      return res.status(403).json({ message: 'This campaign can no longer be edited once submitted for review' });
-
-    const { campaign_title, campaign_type_id, description, website_link, whatsapp_number, promo_code,
-            duration_value, duration_unit_id, target_country_id, target_county_id, target_subcounty_id,
-            budget, comments } = req.body;
-    if (!campaign_title) return res.status(400).json({ message: 'Campaign title is required' });
-
-    const newPosters = (req.files?.posters || []).map(f => `/uploads/campaigns/${f.filename}`);
-    const newAttachments = (req.files?.attachments || []).map(f => `/uploads/campaigns/${f.filename}`);
-    const keptPosters = parseJsonArray(req.body.existing_posters);
-    const keptAttachments = parseJsonArray(req.body.existing_attachments);
-    const posters = JSON.stringify([...keptPosters, ...newPosters]);
-    const attachments = JSON.stringify([...keptAttachments, ...newAttachments]);
-    const target_audience = JSON.stringify(parseJsonArray(req.body.target_audience));
-
-    await pool.query(
-      `UPDATE campaigns SET campaign_title=?, campaign_type_id=?, description=?, posters=?, attachments=?,
-         website_link=?, whatsapp_number=?, promo_code=?, duration_value=?, duration_unit_id=?,
-         target_audience=?, target_country_id=?, target_county_id=?, target_subcounty_id=?, budget=?, comments=?
-       WHERE id=?`,
-      [sanitize(campaign_title), campaign_type_id || null, sanitize(description), posters, attachments,
-       sanitize(website_link), sanitize(whatsapp_number), sanitize(promo_code), duration_value || null,
-       duration_unit_id || null, target_audience, target_country_id || null, target_county_id || null,
-       target_subcounty_id || null, budget || null, sanitize(comments), req.params.id]
-    );
-    const [[campaign]] = await pool.query(`${CAMPAIGN_SELECT} WHERE c.id=?`, [req.params.id]);
-    res.json(withCampaignJson(campaign));
-  } catch (err) { next(err); }
-});
-
-/* POST /api/member-portal/campaigns/:id/submit — Draft -> Submitted for Review */
-router.post('/campaigns/:id/submit', async (req, res, next) => {
-  try {
-    const [[own]] = await pool.query(
-      `SELECT c.id, c.file_no, c.workflow_id, c.workflow_stage_id, ws.stage_name
-       FROM campaigns c LEFT JOIN workflow_stages ws ON c.workflow_stage_id = ws.id
-       WHERE c.id=? AND c.member_id=?`,
-      [req.params.id, req.member.id]
-    );
-    if (!own) return res.status(404).json({ message: 'Campaign not found' });
-    if (own.stage_name !== 'Draft')
-      return res.status(400).json({ message: `Campaign is already "${own.stage_name}"` });
-
-    const [[transition]] = await pool.query(
-      `SELECT t.id AS transition_id, ts.id AS to_stage_id, ts.stage_name AS to_stage_name
-       FROM workflow_transitions t JOIN workflow_stages ts ON t.to_stage_id = ts.id
-       WHERE t.workflow_id=? AND t.from_stage_id=? AND ts.stage_name='Reviewing' LIMIT 1`,
-      [own.workflow_id, own.workflow_stage_id]
-    );
-    if (!transition) return res.status(400).json({ message: 'No submit transition configured' });
-
-    await pool.query('UPDATE campaigns SET workflow_stage_id=? WHERE id=?', [transition.to_stage_id, req.params.id]);
-    await recordHistory({
-      workflowId: own.workflow_id, entityType: 'campaign', entityId: own.id, entityRef: own.file_no,
-      fromStageId: own.workflow_stage_id, toStageId: transition.to_stage_id,
-      fromStatus: own.stage_name, toStatus: transition.to_stage_name,
-      notes: `Submitted for review via member portal (member #${req.member.id})`,
+    res.json({
+      deposits: deposits / 100,
+      withdrawals: withdrawals / 100,
+      net: net / 100,
+      transaction_count: tx.transaction_count,
+      last_transaction_date: tx.last_transaction_date,
+      target: target ? { target_amount: targetCents / 100, target_date: target.target_date } : null,
+      balance: target ? Math.max(targetCents - net, 0) / 100 : null,
+      overpayment: target ? Math.max(net - targetCents, 0) / 100 : null,
+      percent: target && targetCents > 0 ? Math.min(Math.round((Math.max(net, 0) / targetCents) * 1000) / 10, 100) : null,
     });
-    await notifyAdmins('campaign_submitted', {
-      title: 'New campaign submitted',
-      body: `A campaign${own.file_no ? ` (${own.file_no})` : ''} was submitted for review from the member portal.`,
-      url: '/campaigns',
-    });
-    res.json({ message: 'Campaign submitted for review', stage_name: transition.to_stage_name });
+  } catch (err) { next(err); }
+});
+
+/* ── TRANSACTIONS — the member's own, read-only ── */
+router.get('/transactions', async (req, res, next) => {
+  try {
+    const page   = parseInt(req.query.page)  || 1;
+    const limit  = Math.min(parseInt(req.query.limit) || 20, 100);
+    const offset = (page - 1) * limit;
+    const typeFilter = req.query.transaction_type_id ? 'AND t.transaction_type_id = ?' : '';
+    const typeParam  = req.query.transaction_type_id ? [req.query.transaction_type_id] : [];
+
+    const [rows] = await pool.query(
+      `SELECT t.id, t.file_no, t.amount, t.other_details, t.transaction_type_id,
+              tt.paramater_value AS transaction_type_name,
+              DATE_FORMAT(t.transaction_date, '%Y-%m-%d') AS transaction_date,
+              DATE_FORMAT(t.from_date, '%Y-%m-%d') AS from_date,
+              DATE_FORMAT(t.to_date, '%Y-%m-%d') AS to_date
+       FROM transactions t
+       LEFT JOIN parameter_values tt ON t.transaction_type_id = tt.id
+       WHERE t.member_id = ? ${typeFilter}
+       ORDER BY t.transaction_date DESC, t.id DESC
+       LIMIT ? OFFSET ?`,
+      [req.member.id, ...typeParam, limit, offset]
+    );
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM transactions t WHERE t.member_id = ? ${typeFilter}`,
+      [req.member.id, ...typeParam]
+    );
+    res.json({ data: rows, total, page, limit });
+  } catch (err) { next(err); }
+});
+
+/* ── NEXT OF KIN — the member's own, read-only (staff maintain them) ── */
+router.get('/next-of-kin', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT k.id, k.kin_ref_no, k.kin_name, k.id_number, k.phone, k.email,
+              rel.paramater_value AS relationship_name
+       FROM member_next_of_kin k
+       LEFT JOIN parameter_values rel ON k.relationship_id = rel.id
+       WHERE k.member_id = ?
+       ORDER BY k.id`,
+      [req.member.id]
+    );
+    res.json(rows);
   } catch (err) { next(err); }
 });
 

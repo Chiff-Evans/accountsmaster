@@ -13,8 +13,8 @@ self.skipWaiting();
 clientsClaim();
 
 // ── Web Push ──────────────────────────────────────────────────────────────────
-// Every notification type (campaign updates, registration reviews, proof
-// reviews, salary payments, order updates, ...) goes through this one
+// Every notification type (transactions recorded, registration reviews,
+// ...) goes through this one
 // handler, so nothing here may assume the notification is about any one of
 // them specifically — the title/body already say what it's actually about.
 self.addEventListener('push', event => {

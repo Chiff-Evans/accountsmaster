@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { HomeOutlined, SoundOutlined } from '@ant-design/icons';
+import { HomeOutlined, SwapOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import NotificationBell from '../common/NotificationBell';
 
 const NAV = [
-  { path: '/dashboard',  icon: HomeOutlined,  label: 'Home' },
-  { path: '/campaigns',  icon: SoundOutlined, label: 'Campaigns' },
+  { path: '/dashboard',    icon: HomeOutlined, label: 'Home' },
+  { path: '/transactions', icon: SwapOutlined, label: 'Transactions' },
+  { path: '/next-of-kin',  icon: TeamOutlined, label: 'Next of Kin' },
+  { path: '/profile',      icon: UserOutlined, label: 'Profile' },
 ];
 
 export default function AppLayout({ children }) {
@@ -22,7 +24,7 @@ export default function AppLayout({ children }) {
       .catch(() => {});
   }, []);
 
-  const displayName = member?.member_name || `${member?.firstname ?? ''} ${member?.lastname ?? ''}`.trim();
+  const displayName = member?.member_name || '';
   const initials = (displayName || '').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const isProfileActive = pathname === '/profile';
 

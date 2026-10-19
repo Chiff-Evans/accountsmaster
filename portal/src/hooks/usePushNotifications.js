@@ -7,8 +7,8 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 }
 
-// `api` is the axios instance to use — member and brand ambassador each
-// have their own, with their own auth token and push-subscription records.
+// `api` is the axios instance to use — it carries the member's auth token
+// and talks to the member portal's own push-subscription records.
 export function usePushNotifications(api, recipientId) {
   const subscribed = useRef(false);
   const [status, setStatus] = useState('idle'); // idle | subscribing | active | denied | unsupported | error

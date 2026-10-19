@@ -106,11 +106,14 @@ export default function Members() {
     } catch { message.error('Action failed'); }
   };
 
-  const resetPwd = async () => {
+  const savePortalAccess = async () => {
     const vals = await pwdForm.validateFields();
     try {
-      await api.post(`/members/${editing.id}/reset-password`, { new_password: await hashPassword(vals.new_password) });
-      message.success('Password reset'); setPwdModal(false);
+      await api.post(`/members/${editing.id}/portal-access`, {
+        username: vals.username,
+        new_password: vals.new_password ? await hashPassword(vals.new_password) : undefined,
+      });
+      message.success('Portal access updated'); setPwdModal(false); load();
     } catch { message.error('Failed'); }
   };
 
@@ -148,10 +151,16 @@ export default function Members() {
       { key: 'suspended', label: 'Suspend', icon: <StopOutlined />, danger: true },
       { key: 'revoked',   label: 'Revoke',  icon: <StopOutlined />, danger: true },
       { type: 'divider' },
-      { key: 'reset', label: 'Reset Password', icon: <KeyOutlined /> },
+      { key: 'reset', label: 'Portal Access', icon: <KeyOutlined /> },
     ],
     onClick: ({ key }) => {
-      if (key === 'reset') { setEditing(record); pwdForm.resetFields(); setPwdModal(true); }
+      if (key === 'reset') {
+        setEditing(record);
+        pwdForm.resetFields();
+        // Suggest a username from the email for members who don't have one yet.
+        pwdForm.setFieldsValue({ username: record.username || record.email?.split('@')[0] || '' });
+        setPwdModal(true);
+      }
       else doAction(record.id, key);
     },
   });
@@ -359,17 +368,30 @@ export default function Members() {
 
       <NextOfKinModal member={kinMember} onClose={() => setKinMember(null)} />
 
-      {/* Reset Password Modal */}
+      {/* Portal Access Modal — member portal username + password */}
       <Modal
-        title="Reset Member Password"
-        open={pwdModal} onOk={resetPwd} onCancel={() => setPwdModal(false)} centered
+        title="Member Portal Access"
+        open={pwdModal} onOk={savePortalAccess} onCancel={() => setPwdModal(false)} centered
       >
         <Typography.Text>
-          Resetting password for: <strong>{editing?.username || editing?.member_name || `${editing?.firstname} ${editing?.lastname}`}</strong>
+          Portal login for: <strong>{editing?.member_name}</strong>
         </Typography.Text>
         <Form form={pwdForm} layout="vertical" style={{ marginTop: 20 }}>
-          <LabelField label="New Password" required>
-            <Form.Item name="new_password" rules={[{ required: true, min: 6, message: 'Min 6 characters' }]} style={{ marginBottom: 0 }}>
+          <LabelField label="Username" required>
+            <Form.Item name="username" rules={[{ required: true, message: 'Username is required' }]} style={{ marginBottom: 20 }}>
+              <Input autoComplete="off" />
+            </Form.Item>
+          </LabelField>
+          <LabelField label={editing?.has_password ? 'New Password' : 'Password'} required={!editing?.has_password}>
+            <Form.Item
+              name="new_password"
+              rules={[
+                { required: !editing?.has_password, message: 'Set a password to give portal access' },
+                { min: 6, message: 'Min 6 characters' },
+              ]}
+              extra={editing?.has_password ? 'Leave blank to keep the current password' : null}
+              style={{ marginBottom: 0 }}
+            >
               <Input.Password autoComplete="new-password" />
             </Form.Item>
           </LabelField>

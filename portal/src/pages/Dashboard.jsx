@@ -1,80 +1,92 @@
 import { useEffect, useState } from 'react';
-import { Card, Row, Col, Tag, Button, Spin, Typography, Empty } from 'antd';
-import {
-  SoundOutlined, PlusOutlined,
-  RightOutlined, TrophyOutlined,
-} from '@ant-design/icons';
+import { Row, Col, Button, Spin, Typography, Empty, Progress, Alert } from 'antd';
+import { ArrowDownOutlined, ArrowUpOutlined, RightOutlined, AimOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import TransactionCard from '../components/TransactionCard';
 import api from '../api';
+import { money, fmtDate } from '../utils/format';
 
 export default function Dashboard() {
   const { member } = useAuth();
   const navigate    = useNavigate();
-  const [campaigns, setCampaigns] = useState([]);
-  const [loyaltyActive, setLoyaltyActive] = useState(false);
+  const [statement, setStatement] = useState(null);
+  const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const displayName = member?.member_name || `${member?.firstname ?? ''} ${member?.lastname ?? ''}`.trim();
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    Promise.all([api.get('/campaigns'), api.get('/loyalty-status')])
-      .then(([c, l]) => { setCampaigns(c.data); setLoyaltyActive(!!l.data?.is_active); })
+    Promise.all([api.get('/statement'), api.get('/transactions', { params: { limit: 5 } })])
+      .then(([s, t]) => { setStatement(s.data); setRecent(t.data.data); })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
 
-  const recentCampaigns = campaigns.slice(0, 3);
-  const activeCampaigns = campaigns.filter(c => !['Completed', 'Rejected', 'Cancelled'].includes(c.stage_name)).length;
-
   if (loading) return <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>;
+  if (failed) return <div className="page-content"><Alert type="error" showIcon message="Couldn't load your account. Please try again shortly." /></div>;
+
+  const target = statement?.target;
+  const overpaid = statement?.overpayment > 0;
 
   return (
     <div className="page-content">
       {/* Greeting */}
       <div style={styles.greeting}>
-        <div>
-          <div style={styles.greetingName}>Hello, {displayName} 👋</div>
-          <div style={styles.greetingSub}>Welcome again!</div>
+        <div style={styles.greetingName}>Hello, {member?.member_name} 👋</div>
+        <div style={styles.greetingSub}>
+          {member?.position_name ? `${member.position_name} · ` : ''}{member?.member_ref_no || 'Member'}
         </div>
       </div>
 
-      {/* Quick stats */}
+      {/* Standing against the active target */}
+      <div style={styles.targetCard}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <AimOutlined style={{ color: '#13c2c2', fontSize: 16 }} />
+          <Typography.Text strong>My Target</Typography.Text>
+          {target && <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>by {fmtDate(target.target_date)}</Typography.Text>}
+        </div>
+
+        {target ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+              <span style={{ fontSize: 22, fontWeight: 800 }}>{money(statement.net)}</span>
+              <span style={{ fontSize: 12, color: '#8c8c8c' }}>of {money(target.target_amount)}</span>
+            </div>
+            <Progress
+              percent={statement.percent}
+              showInfo={false}
+              strokeColor={overpaid || statement.percent >= 100 ? '#16a34a' : '#13c2c2'}
+              style={{ margin: '0 0 8px' }}
+            />
+            {overpaid ? (
+              <div style={{ ...styles.pill, background: '#f0fdf4', color: '#16a34a' }}>
+                Target met · Overpaid by {money(statement.overpayment)}
+              </div>
+            ) : statement.balance > 0 ? (
+              <div style={{ ...styles.pill, background: '#fff7ed', color: '#c2410c' }}>
+                Balance remaining: {money(statement.balance)}
+              </div>
+            ) : (
+              <div style={{ ...styles.pill, background: '#f0fdf4', color: '#16a34a' }}>Target met</div>
+            )}
+          </>
+        ) : (
+          <Typography.Text type="secondary">No target has been set yet. Your contributions are shown below.</Typography.Text>
+        )}
+      </div>
+
+      {/* Totals */}
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
         {[
-          { label: 'Campaigns', value: campaigns.length, icon: <SoundOutlined />, color: '#1677ff' },
-          { label: 'Active',    value: activeCampaigns,   icon: <SoundOutlined />, color: '#52c41a' },
+          { label: 'Total Deposits',    value: statement.deposits,    icon: <ArrowDownOutlined />, color: '#16a34a' },
+          { label: 'Total Withdrawals', value: statement.withdrawals, icon: <ArrowUpOutlined />,   color: '#ea580c' },
         ].map(s => (
           <Col span={12} key={s.label}>
-            <div
-              onClick={() => navigate('/campaigns')}
-              style={{
-                borderRadius: 14, cursor: 'pointer',
-                background: '#fff',
-                border: `1px solid ${s.color}28`,
-                boxShadow: `0 2px 10px ${s.color}18`,
-                overflow: 'hidden',
-              }}
-            >
-              {/* Coloured top bar */}
+            <div onClick={() => navigate('/transactions')} style={{ ...styles.stat, border: `1px solid ${s.color}28`, boxShadow: `0 2px 10px ${s.color}18` }}>
               <div style={{ height: 3, background: `linear-gradient(90deg, ${s.color}, ${s.color}88)` }} />
-              <div style={{
-                padding: '14px 8px 12px',
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 8,
-              }}>
-                {/* Icon badge */}
-                <div style={{
-                  width: 40, height: 40, borderRadius: 10,
-                  background: `linear-gradient(135deg, ${s.color}22, ${s.color}10)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <span style={{ color: s.color, fontSize: 18 }}>{s.icon}</span>
-                </div>
-                {/* Value */}
-                <span style={{ fontSize: 24, fontWeight: 800, color: '#141414', lineHeight: 1 }}>
-                  {s.value}
-                </span>
-                {/* Label */}
+              <div style={{ padding: '12px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: s.color, fontSize: 18 }}>{s.icon}</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#141414', textAlign: 'center' }}>{money(s.value)}</span>
                 <span style={{ fontSize: 11, color: '#8c8c8c', fontWeight: 500 }}>{s.label}</span>
               </div>
             </div>
@@ -82,59 +94,19 @@ export default function Dashboard() {
         ))}
       </Row>
 
-      {/* Loyalty points card */}
-      {loyaltyActive && member?.loyalty_points > 0 && (
-        <div style={styles.loyaltyCard}>
-          <div style={styles.loyaltyLeft}>
-            <TrophyOutlined style={{ fontSize: 28, color: '#faad14' }} />
-            <div>
-              <div style={styles.loyaltyLabel}>Your Loyalty Points</div>
-              <div style={styles.loyaltyPoints}>{(member.loyalty_points || 0).toLocaleString()} pts</div>
-            </div>
-          </div>
-          <div style={styles.loyaltyBadge}>★ Active</div>
-        </div>
-      )}
-
-      {/* Quick actions */}
-      <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
-        <Button type="primary" block icon={<PlusOutlined />} size="large"
-          style={{ borderRadius: 10, height: 48 }} onClick={() => navigate('/campaigns')}>
-          New Campaign
-        </Button>
-      </Row>
-
-      {/* Recent campaigns */}
+      {/* Recent transactions */}
       <div style={styles.sectionHeader}>
-        <Typography.Text strong>Recent Campaigns</Typography.Text>
-        <Button type="link" size="small" onClick={() => navigate('/campaigns')} style={{ padding: 0 }}>
-          View all <RightOutlined />
-        </Button>
+        <Typography.Text strong>Recent Transactions</Typography.Text>
+        {recent.length > 0 && (
+          <Button type="link" size="small" onClick={() => navigate('/transactions')} style={{ padding: 0 }}>
+            View all <RightOutlined />
+          </Button>
+        )}
       </div>
 
-      {recentCampaigns.length === 0 ? (
-        <Empty description="No campaigns yet" style={{ margin: '20px 0' }}>
-          <Button type="primary" onClick={() => navigate('/campaigns')}>Create Your First Campaign</Button>
-        </Empty>
-      ) : (
-        recentCampaigns.map(c => (
-          <Card
-            key={c.id}
-            size="small"
-            style={styles.campaignCard}
-            styles={{ body: { padding: '12px 14px' } }}
-            onClick={() => navigate('/campaigns')}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 2 }}>{c.campaign_title}</div>
-                <div style={{ fontSize: 12, color: '#888' }}>{c.campaign_type_name || '—'}</div>
-              </div>
-              <Tag color={c.stage_color || 'default'}>{c.stage_name || 'Draft'}</Tag>
-            </div>
-          </Card>
-        ))
-      )}
+      {recent.length === 0
+        ? <Empty description="No transactions yet" style={{ margin: '20px 0' }} />
+        : recent.map(t => <TransactionCard key={t.id} tx={t} />)}
     </div>
   );
 }
@@ -142,31 +114,15 @@ export default function Dashboard() {
 const styles = {
   greeting: {
     background: 'linear-gradient(135deg, #14418f 0%, #0f7a6e 50%, #22c55e 100%)',
-    borderRadius: 14, padding: '20px 18px', marginBottom: 20, color: '#fff',
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    borderRadius: 14, padding: '20px 18px', marginBottom: 16, color: '#fff',
   },
   greetingName: { fontSize: 18, fontWeight: 700, marginBottom: 2 },
   greetingSub:  { fontSize: 13, opacity: 0.85 },
-  loyaltyCard: {
-    background: 'linear-gradient(135deg, #fffbe6 0%, #fff7cc 100%)',
-    border: '1px solid #ffe58f',
-    borderRadius: 14, padding: '16px 18px', marginBottom: 16,
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    boxShadow: '0 2px 8px rgba(250,173,20,0.15)',
+  targetCard: {
+    background: '#fff', borderRadius: 14, padding: '14px 16px', marginBottom: 16,
+    border: '1px solid #13c2c228', boxShadow: '0 2px 10px #13c2c218',
   },
-  loyaltyLeft:   { display: 'flex', alignItems: 'center', gap: 14 },
-  loyaltyLabel:  { fontSize: 12, color: '#ad6800', fontWeight: 500, marginBottom: 2 },
-  loyaltyPoints: { fontSize: 22, fontWeight: 800, color: '#d46b08', lineHeight: 1 },
-  loyaltyBadge:  {
-    background: '#faad14', color: '#fff', borderRadius: 20,
-    padding: '3px 12px', fontSize: 12, fontWeight: 700,
-  },
-  sectionHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 10,
-  },
-  campaignCard: {
-    borderRadius: 10, marginBottom: 10, cursor: 'pointer',
-    boxShadow: '0 1px 6px rgba(0,0,0,0.06)',
-  },
+  pill: { borderRadius: 8, padding: '6px 10px', fontSize: 13, fontWeight: 600, textAlign: 'center' },
+  stat: { borderRadius: 14, cursor: 'pointer', background: '#fff', overflow: 'hidden' },
+  sectionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
 };

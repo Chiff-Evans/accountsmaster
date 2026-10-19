@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../config/db');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { generateRefNo } = require('../helpers/refNumber');
+const { notify } = require('../helpers/notify');
 
 router.use(authenticate);
 
@@ -108,7 +109,17 @@ router.post('/', canCreate, async (req, res, next) => {
        transaction_date, other_details || null, req.user.id]
     );
     const [rows] = await pool.query(`${LIST_SELECT} WHERE t.id=?`, [result.insertId]);
-    res.status(201).json(rows[0]);
+    const tx = rows[0];
+
+    // Let the member see it in their portal (bell + push, per their preferences).
+    const amountText = Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 });
+    await notify('member', tx.member_id, 'transaction_recorded', {
+      title: `${tx.transaction_type_name || 'Transaction'} of KES ${amountText} recorded`,
+      body: `${tx.file_no ? `${tx.file_no} · ` : ''}Dated ${tx.transaction_date}.`,
+      url: '/transactions',
+    });
+
+    res.status(201).json(tx);
   } catch (err) { next(err); }
 });
 
