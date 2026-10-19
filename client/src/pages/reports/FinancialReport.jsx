@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Tabs, Segmented, DatePicker, Table, Tag, Card, Row, Col, Typography, Button, Spin, Empty } from 'antd';
 import {
-  DollarOutlined, WalletOutlined, RiseOutlined, NotificationOutlined, PrinterOutlined,
+  ArrowDownOutlined, ArrowUpOutlined, DollarOutlined, IdcardOutlined, PrinterOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -21,94 +21,68 @@ const FORMATTERS = {
 /* Each view is just: where to fetch from + how to render its columns.
    `total: true` marks a numeric column that gets summed in the footer/print. */
 const VIEWS = {
-  'revenue:campaign': {
-    path: '/reports/revenue/by-campaign', label: 'By Campaign',
+  'transactions:member': {
+    path: '/reports/transactions/by-member', label: 'By Member',
     columns: [
-      { title: 'File No', dataIndex: 'file_no' },
-      { title: 'Campaign', dataIndex: 'campaign_title' },
-      { title: 'Payments', dataIndex: 'payment_count', format: 'number' },
-      { title: 'Revenue', dataIndex: 'total_revenue', format: 'money', total: true },
-    ],
-  },
-  'revenue:member': {
-    path: '/reports/revenue/by-member', label: 'By Member',
-    columns: [
+      { title: 'Ref No', dataIndex: 'member_ref_no' },
       { title: 'Member', dataIndex: 'member_name' },
-      { title: 'Payments', dataIndex: 'payment_count', format: 'number' },
-      { title: 'Revenue', dataIndex: 'total_revenue', format: 'money', total: true },
+      { title: 'Transactions', dataIndex: 'transaction_count', format: 'number', total: true },
+      { title: 'Deposits', dataIndex: 'deposits', format: 'money', total: true },
+      { title: 'Withdrawals', dataIndex: 'withdrawals', format: 'money', total: true },
+      { title: 'Net', dataIndex: 'net', format: 'money', total: true, signColor: true },
     ],
   },
-  'revenue:stage': {
-    path: '/reports/revenue/by-stage', label: 'By Stage',
+  'transactions:type': {
+    path: '/reports/transactions/by-type', label: 'By Type',
     columns: [
-      { title: 'Campaign', dataIndex: 'campaign_title' },
-      { title: 'Stage', dataIndex: 'stage_name', tag: true, tagColor: r => r.stage_color },
-      { title: 'Payments', dataIndex: 'payment_count', format: 'number' },
-      { title: 'Revenue', dataIndex: 'total_revenue', format: 'money', total: true },
+      { title: 'Transaction Type', dataIndex: 'type_name', tag: true },
+      { title: 'Transactions', dataIndex: 'transaction_count', format: 'number', total: true },
+      { title: 'Amount', dataIndex: 'total_amount', format: 'money', total: true },
     ],
   },
-  'revenue:date': {
-    path: '/reports/revenue/by-date', label: 'By Date',
-    columns: [
-      { title: 'Date', dataIndex: 'date', format: 'date' },
-      { title: 'Payments', dataIndex: 'payment_count', format: 'number' },
-      { title: 'Revenue', dataIndex: 'total_revenue', format: 'money', total: true },
-    ],
-  },
-  'profit:campaign': {
-    path: '/reports/profit/by-campaign', label: 'By Campaign',
-    columns: [
-      { title: 'File No', dataIndex: 'file_no' },
-      { title: 'Campaign', dataIndex: 'campaign_title' },
-      { title: 'Revenue', dataIndex: 'revenue', format: 'money', total: true },
-      { title: 'Expenditure', dataIndex: 'expenditure', format: 'money', total: true },
-      { title: 'Profit', dataIndex: 'profit', format: 'money', total: true, signColor: true },
-      { title: 'Margin', dataIndex: 'margin', format: 'percent' },
-    ],
-  },
-  'expenditure:campaign': {
-    path: '/reports/expenditure/by-campaign', label: 'By Campaign',
-    columns: [
-      { title: 'File No', dataIndex: 'file_no' },
-      { title: 'Campaign', dataIndex: 'campaign_title' },
-      { title: 'Entries', dataIndex: 'entry_count', format: 'number' },
-      { title: 'Expenditure', dataIndex: 'total_expenditure', format: 'money', total: true },
-    ],
-  },
-  'expenditure:item': {
-    path: '/reports/expenditure/by-item', label: 'By Item',
-    columns: [
-      { title: 'Type', dataIndex: 'type_name' },
-      { title: 'Entries', dataIndex: 'entry_count', format: 'number' },
-      { title: 'Expenditure', dataIndex: 'total_expenditure', format: 'money', total: true },
-    ],
-  },
-  'expenditure:date': {
-    path: '/reports/expenditure/by-date', label: 'By Date',
+  'transactions:date': {
+    path: '/reports/transactions/by-date', label: 'By Date',
     columns: [
       { title: 'Date', dataIndex: 'date', format: 'date' },
-      { title: 'Entries', dataIndex: 'entry_count', format: 'number' },
-      { title: 'Expenditure', dataIndex: 'total_expenditure', format: 'money', total: true },
+      { title: 'Transactions', dataIndex: 'transaction_count', format: 'number', total: true },
+      { title: 'Deposits', dataIndex: 'deposits', format: 'money', total: true },
+      { title: 'Withdrawals', dataIndex: 'withdrawals', format: 'money', total: true },
+      { title: 'Net', dataIndex: 'net', format: 'money', total: true, signColor: true },
+    ],
+  },
+  'registrations:date': {
+    path: '/reports/registrations/by-date', label: 'By Date',
+    columns: [
+      { title: 'Reg Date', dataIndex: 'date', format: 'date' },
+      { title: 'Members', dataIndex: 'member_count', format: 'number', total: true },
+      { title: 'Reg Fees', dataIndex: 'reg_fees', format: 'money', total: true },
+    ],
+  },
+  'registrations:position': {
+    path: '/reports/registrations/by-position', label: 'By Position',
+    columns: [
+      { title: 'Position', dataIndex: 'position_name', tag: true },
+      { title: 'Members', dataIndex: 'member_count', format: 'number', total: true },
+      { title: 'Reg Fees', dataIndex: 'reg_fees', format: 'money', total: true },
     ],
   },
 };
 
 const CATEGORY_SUBVIEWS = {
-  revenue:     ['campaign', 'member', 'stage', 'date'],
-  profit:      ['campaign'],
-  expenditure: ['campaign', 'item', 'date'],
+  transactions:  ['member', 'type', 'date'],
+  registrations: ['date', 'position'],
 };
 
 /* ── print (same self-contained approach used elsewhere in this app —
    inject a print stylesheet once, build a plain HTML table, window.print()) ── */
 function ensurePrintStyle() {
-  if (document.getElementById('campaigns-report-print-style')) return;
+  if (document.getElementById('financial-report-print-style')) return;
   const style = document.createElement('style');
-  style.id = 'campaigns-report-print-style';
+  style.id = 'financial-report-print-style';
   style.innerHTML = `
     /* Hidden during normal browsing — plain display:none, not just
        visibility, so it never affects on-screen layout. */
-    #campaigns-report-printable { display: none; }
+    #financial-report-printable { display: none; }
     @media print {
       @page { size: A4 landscape; margin: 14mm; }
       body * { visibility: hidden; }
@@ -116,17 +90,17 @@ function ensurePrintStyle() {
          it has to be re-declared display:block here too, or nothing
          prints at all (that was the actual bug: the div stayed
          display:none straight through printing). */
-      #campaigns-report-printable { display: block !important; visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
-      #campaigns-report-printable * { visibility: visible; }
-      #campaigns-report-printable table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      #campaigns-report-printable th, #campaigns-report-printable td { border: 1px solid #ccc; padding: 6px 8px; }
-      #campaigns-report-printable th { background: #f0f0f0; text-align: left; }
+      #financial-report-printable { display: block !important; visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
+      #financial-report-printable * { visibility: visible; }
+      #financial-report-printable table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      #financial-report-printable th, #financial-report-printable td { border: 1px solid #ccc; padding: 6px 8px; }
+      #financial-report-printable th { background: #f0f0f0; text-align: left; }
     }
   `;
   document.head.appendChild(style);
-  if (!document.getElementById('campaigns-report-printable')) {
+  if (!document.getElementById('financial-report-printable')) {
     const div = document.createElement('div');
-    div.id = 'campaigns-report-printable';
+    div.id = 'financial-report-printable';
     document.body.appendChild(div);
   }
 }
@@ -152,7 +126,7 @@ function printReport({ title, periodLabel, view, rows }) {
       </tbody>
     </table>
   `;
-  const printable = document.getElementById('campaigns-report-printable');
+  const printable = document.getElementById('financial-report-printable');
   printable.innerHTML = html;
   const prevTitle = document.title;
   document.title = `${periodLabel} - ${title}`;
@@ -160,13 +134,13 @@ function printReport({ title, periodLabel, view, rows }) {
   document.title = prevTitle;
 }
 
-export default function CampaignsReport() {
+export default function FinancialReport() {
   const isMobile = useIsMobile();
 
   const defaultRange = [dayjs().startOf('month'), dayjs()];
   const [dateRange, setDateRange] = useState(defaultRange);
-  const [category, setCategory] = useState('revenue');
-  const [subView, setSubView]   = useState({ revenue: 'campaign', profit: 'campaign', expenditure: 'campaign' });
+  const [category, setCategory] = useState('transactions');
+  const [subView, setSubView]   = useState({ transactions: 'member', registrations: 'date' });
 
   const [summary, setSummary] = useState(null);
   const [rows, setRows]       = useState([]);
@@ -207,17 +181,17 @@ export default function CampaignsReport() {
     },
   })), [view]);
 
+  const money = v => `KES ${Number(v ?? 0).toLocaleString()}`;
   const kpiCards = summary && [
-    { title: 'Revenue',     value: `KES ${Number(summary.total_revenue).toLocaleString()}`, icon: <DollarOutlined />, color: '#1677ff' },
-    { title: 'Expenditure', value: `KES ${Number(summary.total_expenditure).toLocaleString()}`, icon: <WalletOutlined />, color: '#faad14' },
-    { title: 'Profit',      value: `KES ${Number(summary.total_profit).toLocaleString()}`, icon: <RiseOutlined />, color: summary.total_profit >= 0 ? '#52c41a' : '#ff4d4f' },
-    { title: 'Campaigns',   value: summary.total_campaigns, icon: <NotificationOutlined />, color: '#722ed1' },
+    { title: 'Deposits',          value: money(summary.total_deposits),    icon: <ArrowDownOutlined />, color: '#52c41a' },
+    { title: 'Withdrawals',       value: money(summary.total_withdrawals), icon: <ArrowUpOutlined />,   color: '#fa8c16' },
+    { title: 'Net Contributions', value: money(summary.net_contributions), icon: <DollarOutlined />,    color: summary.net_contributions >= 0 ? '#1677ff' : '#ff4d4f' },
+    { title: `Reg Fees · ${summary.new_members} new member${summary.new_members === 1 ? '' : 's'}`, value: money(summary.total_reg_fees), icon: <IdcardOutlined />, color: '#722ed1' },
   ];
 
   const categoryTabs = [
-    { key: 'revenue',     label: 'Revenue' },
-    { key: 'profit',      label: 'Profit' },
-    { key: 'expenditure', label: 'Expenditure' },
+    { key: 'transactions',  label: 'Transactions' },
+    { key: 'registrations', label: 'Registration Fees' },
   ];
 
   return (
@@ -228,7 +202,7 @@ export default function CampaignsReport() {
         justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center',
         gap: 12, marginBottom: 16,
       }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Campaigns Report</Typography.Title>
+        <Typography.Title level={4} style={{ margin: 0 }}>Financial Report</Typography.Title>
         <div style={{
           display: 'flex', flexDirection: isMobile ? 'column' : 'row',
           gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : undefined,
@@ -277,7 +251,7 @@ export default function CampaignsReport() {
         style={{ marginBottom: 4 }}
       />
 
-      {/* Sub-view selector (Campaign / Member / Stage / Date, etc.) */}
+      {/* Sub-view selector (Member / Type / Date, etc.) */}
       {CATEGORY_SUBVIEWS[category].length > 1 && (
         <Segmented
           block

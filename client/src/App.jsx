@@ -19,7 +19,7 @@ import Members from './pages/members/Members';
 import MemberStatistics from './pages/members/MemberStatistics';
 import ReceiptConfig from './pages/stock/ReceiptConfig';
 import PublicReceipt from './pages/orders/PublicReceipt';
-import CampaignsReport from './pages/reports/CampaignsReport';
+import FinancialReport from './pages/reports/FinancialReport';
 import Parameters from './pages/config/Parameters';
 import Targets from './pages/config/Targets';
 import Transactions from './pages/transactions/Transactions';
@@ -61,7 +61,7 @@ export default function App() {
                     <Route path="/members"            element={<Members />} />
                     <Route path="/members/statistics" element={<MemberStatistics />} />
                     <Route path="/stock/receipt-config" element={<ReceiptConfig />} />
-                    <Route path="/reports/campaigns"    element={<CampaignsReport />} />
+                    <Route path="/reports/finance"      element={<FinancialReport />} />
                     <Route path="/transactions"         element={<Transactions />} />
                   </Routes>
                 </AppLayout>

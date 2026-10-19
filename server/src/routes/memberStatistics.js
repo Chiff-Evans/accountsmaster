@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool = require('../config/db');
 const { authenticate, requirePermission } = require('../middleware/auth');
+const { depositSum, withdrawalSum } = require('../helpers/transactionTypes');
 
 router.use(authenticate);
 
@@ -15,9 +16,7 @@ const fromCents = c => c / 100;
      net         = deposits - withdrawals
      balance     = max(target - net, 0)
      overpayment = max(net - target, 0)
-   Deposit/Withdraw are told apart by the Transaction Types parameter
-   value name, so renaming those values (e.g. "Withdrawal") keeps working
-   as long as they still start with "Deposit" / "Withdraw". */
+   (Deposit/Withdraw classification: see helpers/transactionTypes.js) */
 router.get('/', canView, async (req, res, next) => {
   try {
     const [[target]] = await pool.query(
@@ -27,8 +26,8 @@ router.get('/', canView, async (req, res, next) => {
 
     const [rows] = await pool.query(
       `SELECT m.id, m.member_ref_no, m.member_name,
-              COALESCE(SUM(CASE WHEN tt.paramater_value LIKE 'deposit%'  THEN t.amount END), 0) AS deposits,
-              COALESCE(SUM(CASE WHEN tt.paramater_value LIKE 'withdraw%' THEN t.amount END), 0) AS withdrawals
+              ${depositSum()} AS deposits,
+              ${withdrawalSum()} AS withdrawals
        FROM members m
        LEFT JOIN transactions t      ON t.member_id = m.id
        LEFT JOIN parameter_values tt ON t.transaction_type_id = tt.id
