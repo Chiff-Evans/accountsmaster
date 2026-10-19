@@ -263,24 +263,32 @@ export default function CrudTable({
     else { setISize(v); setIPage(1); }
   };
 
-  const containerHeight = hidePagination
-    ? 'auto'
-    : customHeight
-      ? `${customHeight}px`
-      : `calc(${isMobile ? '100dvh' : '100vh'} - ${LAYOUT_H + heightOffset}px)`;
+  // An explicit height without pagination (e.g. a grid inside a pop-up)
+  // stays exactly that tall — rows scroll inside it instead of growing it.
+  const fixedHeight = hidePagination && !!customHeight;
+  const TOOLBAR_H = 44;
+  const TABLE_HEADER_H = 39;
+
+  const containerHeight = fixedHeight
+    ? `${customHeight}px`
+    : hidePagination
+      ? 'auto'
+      : customHeight
+        ? `${customHeight}px`
+        : `calc(${isMobile ? '100dvh' : '100vh'} - ${LAYOUT_H + heightOffset}px)`;
 
   const scrollY = (() => {
+    if (fixedHeight) return customHeight - TOOLBAR_H - TABLE_HEADER_H;
     if (hidePagination) return undefined;
     const bodyH = customHeight ? customHeight - 140 : winH - SCROLL_DEDUCT - heightOffset;
     // Don't fix the height when content fits — avoids unnecessary scrollbar track
-    const TABLE_HEADER_H = 39;
     const contentH = visibleRowCount * ROW_H + TABLE_HEADER_H;
     if (contentH < bodyH) return undefined;
     return customHeight ? bodyH : `calc(100vh - ${SCROLL_DEDUCT + heightOffset}px)`;
   })();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: containerHeight, overflow: hidePagination ? 'visible' : 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: containerHeight, overflow: hidePagination && !fixedHeight ? 'visible' : 'hidden' }}>
 
       {/* Toolbar */}
       {isMobile ? (
@@ -373,7 +381,7 @@ export default function CrudTable({
           )}
         </div>
       ) : (
-        <div style={hidePagination ? {} : { flex: 1, minHeight: 0 }}>
+        <div style={hidePagination && !fixedHeight ? {} : { flex: 1, minHeight: 0 }}>
           <Table
             rowKey={rowKey}
             columns={[...columns, ...actionCol]}
