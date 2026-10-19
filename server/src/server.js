@@ -27,6 +27,7 @@ app.use('/api/ref-numbers',   require('./routes/refNumbers'));
 app.use('/api/members',   require('./routes/members'));
 app.use('/api/orders',        require('./routes/orders'));
 app.use('/api/parameters',    require('./routes/parameters'));
+app.use('/api/targets',       require('./routes/targets'));
 app.use('/api/expenditure',   require('./routes/expenditure'));
 app.use('/api/payments',      require('./routes/payments'));
 app.use('/api/brand-ambassadors', require('./routes/brandAmbassadors'));

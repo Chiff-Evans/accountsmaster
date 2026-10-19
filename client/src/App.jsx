@@ -20,6 +20,7 @@ import ReceiptConfig from './pages/stock/ReceiptConfig';
 import PublicReceipt from './pages/orders/PublicReceipt';
 import CampaignsReport from './pages/reports/CampaignsReport';
 import Parameters from './pages/config/Parameters';
+import Targets from './pages/config/Targets';
 import Transactions from './pages/transactions/Transactions';
 
 function ProtectedRoute({ children }) {
@@ -51,6 +52,7 @@ export default function App() {
                     <Route path="/config/workflows"     element={<Workflows />} />
                     <Route path="/config/loyalty"       element={<LoyaltyConfig />} />
                     <Route path="/config/parameters"    element={<Parameters />} />
+                    <Route path="/config/targets"       element={<Targets />} />
                     <Route path="/users"                 element={<Users />} />
                     <Route path="/stock/payments"        element={<Payments />} />
                     <Route path="/stock/expenditure"     element={<Expenditure />} />
