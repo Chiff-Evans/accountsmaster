@@ -1,0 +1,73 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* App backdrop: diagonal blue -> teal -> green. Cards/content are light,
+     so this mainly shows on pre-auth screens (Login) and the thin gap
+     around the main Content panel. */
+  background: linear-gradient(135deg, #14418f 0%, #0f7a6e 50%, #22c55e 100%);
+  background-attachment: fixed;
+}
+#root { height: 100vh; }
+
+.page-content { padding: 16px; }
+
+.ant-layout-sider .ant-menu { border-inline-end: none !important; }
+
+.stat-card .ant-statistic-title { font-size: 13px; color: #666; }
+
+.table-action-btn { padding: 0 4px; }
+
+.ant-table-row-striped > td { background: #fafafa !important; }
+
+/* Full-screen modal on mobile */
+.mobile-fs .ant-modal-wrap    { padding: 0 !important; }
+.mobile-fs .ant-modal         { margin: 0 !important; max-width: 100vw !important; }
+.mobile-fs .ant-modal-content { padding-left: 2px !important; padding-right: 2px !important; }
+.mobile-fs .ant-modal-header  { padding-left: 2px !important; padding-right: 2px !important; }
+
+@media (max-width: 768px) {
+  .page-content { padding: 8px; }
+
+  /* RangePicker dropdown: the two month panels render side by side by
+     default, which overflows badly on narrow screens (one panel gets cut
+     off past the viewport edge). Stack them vertically instead so each
+     panel gets the full width to itself. */
+  .ant-picker-dropdown .ant-picker-panel-container { max-width: 100vw; overflow-x: auto; }
+  .ant-picker-dropdown .ant-picker-panels { flex-direction: column; }
+  .ant-picker-dropdown .ant-picker-panels > *:not(:last-child) .ant-picker-panel { border-bottom: 1px solid rgba(5,5,5,0.06); }
+}
+
+/* Hide scrollbar while keeping scroll */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* CrudTable grids scroll internally once their rows outgrow the viewport,
+   but Chrome/Edge's default overlay scrollbar renders at 0 width and is
+   invisible at rest — so a scrollable grid looks like it just clips its
+   last rows, with no cue more content exists below the fold. Give every
+   grid body a slim, always-rendered scrollbar instead. */
+.ant-table-body {
+  scrollbar-width: thin;
+  scrollbar-color: #bfbfbf transparent;
+}
+.ant-table-body::-webkit-scrollbar { width: 8px; height: 8px; }
+.ant-table-body::-webkit-scrollbar-track { background: transparent; }
+.ant-table-body::-webkit-scrollbar-thumb { background: #bfbfbf; border-radius: 4px; }
+.ant-table-body::-webkit-scrollbar-thumb:hover { background: #999; }
+
+/* antd's Image preview (lightbox) puts its close "X" in the top-right
+   corner by default — move it to the top-center of the screen instead. */
+.ant-image-preview-close {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%);
+}
+
+/* Rich text rendered inside receipt preview / print */
+.receipt-rich-text p  { margin: 0 0 2px; }
+.receipt-rich-text ul,
+.receipt-rich-text ol { margin: 0 0 2px; padding-left: 16px; }
+.receipt-rich-text li { margin: 0; }
+.receipt-rich-text strong { font-weight: 700; }
+.receipt-rich-text em     { font-style: italic; }
+.receipt-rich-text u      { text-decoration: underline; }

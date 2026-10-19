@@ -1,0 +1,19 @@
+Deployment Commands
+<!-- UAT SERVER -->
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\server\src\routes\*" root@31.97.199.20:/opt/accountsmaster/server/src/routes/
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\server\src\utils\*" root@31.97.199.20:/opt/accountsmaster/server/src/utils/
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\server\src\helpers\*" root@31.97.199.20:/opt/accountsmaster/server/src/helpers/
+
+<!-- UAT CORE -->
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\client\dist\assets\*" root@31.97.199.20:/var/www/html/accountsmaster/assets
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\client\dist\*"        root@31.97.199.20:/var/www/html/accountsmaster
+
+<!-- UAT PORTAL -->
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\portal\dist\assets\*" root@31.97.199.20:/var/www/html/accountsmasterportal/assets
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\portal\dist\*"        root@31.97.199.20:/var/www/html/accountsmasterportal
+
+<!--Continous Production UAT -->
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\client\dist\assets\*" root@31.97.199.20:/var/www/html/accountsmaster/assets
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\client\dist\*"        root@31.97.199.20:/var/www/html/accountsmaster
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\portal\dist\assets\*" root@31.97.199.20:/var/www/html/accountsmasterportal/assets
+scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\portal\dist\*"        root@31.97.199.20:/var/www/html/accountsmasterportal

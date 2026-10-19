@@ -1,0 +1,27 @@
+
+# Uploaded user files — ignore contents but keep directory
+server/uploads/avatars/*
+!server/uploads/avatars/.gitkeep
+
+# Node modules
+node_modules/
+server/node_modules/
+client/node_modules/
+portal/node_modules/
+
+# Environment files
+.env
+server/.env
+client/.env
+
+# Build output
+client/dist/
+portal/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+#deployment
+server/deploy/
+server/deploy_new/

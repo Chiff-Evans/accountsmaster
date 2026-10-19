@@ -1,0 +1,40 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* App backdrop: diagonal blue -> teal -> green, matching the core app. */
+  background: linear-gradient(135deg, #14418f 0%, #0f7a6e 50%, #22c55e 100%);
+  background-attachment: fixed;
+}
+#root { min-height: 100vh; }
+
+/* hide scrollbar but keep scroll */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* bottom nav safe area */
+.page-content { padding: 16px 16px 80px; }
+
+@media (min-width: 540px) {
+  .page-content { padding: 24px 24px 80px; }
+}
+
+/* App shell fills the whole viewport — no phone-frame cap. Pages that need
+   a contained reading column (e.g. trip detail) do that themselves, scoped
+   to just their content, so the rest of the app still uses the full width.
+   No transform here — a transform on this ancestor would create a new
+   containing block for the bottom nav's position:fixed, pinning it to the
+   bottom of this (possibly taller-than-viewport) box instead of the
+   viewport itself, so it'd scroll away on any page with enough content. */
+.portal-frame {
+  min-height: 100vh;
+  background: #f5f7fa;
+  position: relative;
+}
+
+/* antd's Image preview (lightbox) puts its close "X" in the top-right
+   corner by default — move it to the top-center of the screen instead. */
+.ant-image-preview-close {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%);
+}

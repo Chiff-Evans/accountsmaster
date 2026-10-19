@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\\\\.jsx)",
+      "Bash(\\\\.js\")",
+      "Bash(grep -n \"shop_id\\\\|CREATE TABLE orders\\\\|CREATE TABLE \\\\`orders\\\\`\" /c/xampp/htdocs/projects/accountsmaster/server/database/schema.sql)",
+      "Bash(node --check server/src/routes/orders.js)",
+      "Bash(node --check server/src/routes/receipts.js)",
+      "Bash(node --check server/src/routes/reports.js)",
+      "Bash(node --check server/src/routes/dashboard.js)",
+      "Bash(node -e ' *)",
+      "Bash(npx vite *)",
+      "Bash(node --check src/routes/clientPortal.js)",
+      "Bash(xargs grep -l \"clientPortal\")",
+      "Bash(netstat -ano)",
+      "Bash(wmic process *)",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter 'ProcessId=26704' | Select-Object CommandLine\")",
+      "Bash(taskkill //PID 26704 //F)",
+      "Bash(node src/server.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8000/api/portal/push/vapid-key)"
+    ]
+  }
+}
