@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Modal, Form, Input, InputNumber, Select, DatePicker, Radio, Tag, Button, Dropdown,
+  Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Button, Dropdown,
   message, Typography, Popover, Checkbox, Spin, Space,
 } from 'antd';
 import dayjs from 'dayjs';
@@ -43,6 +43,7 @@ export default function Members() {
   const [pwdForm] = Form.useForm();
 
   const [positions, setPositions] = useState([]); // parameter text_id 'parties-positions'
+  const [genders, setGenders]     = useState([]); // parameter text_id 'genders'
   const [saving, setSaving] = useState(false);
 
   // Process (workflow transition) modal — Submitted -> Under Review -> Approved/Rejected
@@ -64,6 +65,7 @@ export default function Members() {
   useEffect(() => {
     load();
     api.get('/parameters/values', { params: { text_id: 'parties-positions' } }).then(r => setPositions(r.data));
+    api.get('/parameters/values', { params: { text_id: 'genders' } }).then(r => setGenders(r.data));
   }, [load]);
 
   useEffect(() => { api.get('/members/stages').then(r => setStages(r.data)); }, []);
@@ -78,7 +80,7 @@ export default function Members() {
         id_number:     vals.id_number || null,
         phone:         vals.phone || null,
         email:         vals.email || null,
-        gender:        vals.gender || null,
+        gender_id:     vals.gender_id ?? null,
         reg_date:      vals.reg_date ? vals.reg_date.format('YYYY-MM-DD') : null,
         reg_fee:       vals.reg_fee ?? null,
         other_details: vals.other_details || null,
@@ -161,7 +163,7 @@ export default function Members() {
     { title: 'Phone',    dataIndex: 'phone',  key: 'phone', mobileAlign: 'right' },
     { title: 'Email',    dataIndex: 'email',   key: 'email',   mobileExpanded: true,
       render: v => v ? <Tag>{v}</Tag> : null },
-    { title: 'Gender',   dataIndex: 'gender', key: 'gender', mobileExpanded: true },
+    { title: 'Gender',   dataIndex: 'gender_name', key: 'gender', mobileExpanded: true },
     { title: 'Reg Date', dataIndex: 'reg_date', key: 'regdate', mobileExpanded: true,
       render: v => v ? dayjs(v).format('D MMM YYYY') : '—' },
     { title: 'Reg Fee',  dataIndex: 'reg_fee', key: 'regfee', mobileExpanded: true, align: 'right',
@@ -236,9 +238,10 @@ export default function Members() {
         loading={loading}
         onAdd={() => {
           setEditing(null); form.resetFields();
-          // Prefill whichever position staff have explicitly marked as default.
+          // Prefill whichever values staff have explicitly marked as default per parameter.
           form.setFieldsValue({
             position_id: positions.find(p => p.is_default)?.id,
+            gender_id:   genders.find(g => g.is_default)?.id,
             reg_date:    dayjs(),
           });
           setOpen(true);
@@ -306,11 +309,10 @@ export default function Members() {
           </LabelField>
 
           <LabelField label="Gender">
-            <Form.Item name="gender" style={{ marginBottom: 20 }}>
-              <Radio.Group>
-                <Radio value="Male">Male</Radio>
-                <Radio value="Female">Female</Radio>
-              </Radio.Group>
+            <Form.Item name="gender_id" style={{ marginBottom: 20 }}>
+              <Select allowClear showSearch optionFilterProp="children" placeholder="Select Gender">
+                {genders.map(g => <Select.Option key={g.id} value={g.id}>{g.paramater_value}</Select.Option>)}
+              </Select>
             </Form.Item>
           </LabelField>
 

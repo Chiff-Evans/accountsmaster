@@ -99,7 +99,7 @@ function issueToken(id, rememberMe = false) {
   return jwt.sign({ id, type: 'member' }, MEMBER_SECRET, { expiresIn });
 }
 
-const SAFE_FIELDS = `id,member_ref_no,member_type_id,member_name,firstname,lastname,gender,industry_id,
+const SAFE_FIELDS = `id,member_ref_no,member_type_id,member_name,firstname,lastname,gender_id,industry_id,
   country_id,county_id,subcounty_id,logo_url,phone,email,username,status,loyalty_points,
   workflow_id,workflow_stage_id,created_at`.replace(/\s+/g, ' ');
 
@@ -121,11 +121,13 @@ router.get('/business-info', async (req, res, next) => {
    Audience, etc.) both before and after login. */
 router.get('/parameters/values', async (req, res, next) => {
   try {
-    const { parameter_id } = req.query;
-    if (!parameter_id) return res.status(400).json({ message: 'parameter_id is required' });
+    const { parameter_id, text_id } = req.query;
+    if (!parameter_id && !text_id) return res.status(400).json({ message: 'parameter_id or text_id is required' });
     const [rows] = await pool.query(
-      'SELECT id, parent_value_id, paramater_value, description, is_default FROM parameter_values WHERE parameter_id=? AND is_active=1 ORDER BY paramater_value',
-      [parameter_id]
+      `SELECT id, parent_value_id, paramater_value, description, is_default FROM parameter_values
+       WHERE parameter_id=${parameter_id ? '?' : '(SELECT id FROM parameters WHERE text_id=? LIMIT 1)'}
+         AND is_active=1 ORDER BY paramater_value`,
+      [parameter_id || text_id]
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -160,7 +162,7 @@ router.post('/auth/verify-code', async (req, res, next) => {
 router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) => {
   try {
     const { member_type_id, member_name, industry_id, country_id, county_id, subcounty_id,
-            gender, phone, username, password } = req.body;
+            gender_id, phone, username, password } = req.body;
     const email = (req.body.email || '').trim().toLowerCase();
 
     if (!member_name || !username || !password)
@@ -189,11 +191,11 @@ router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) 
 
     const [r] = await pool.query(
       `INSERT INTO members
-         (member_ref_no, member_type_id, member_name, firstname, lastname, gender, industry_id,
+         (member_ref_no, member_type_id, member_name, firstname, lastname, gender_id, industry_id,
           country_id, county_id, subcounty_id, logo_url, phone, email, username, password_hash,
           status, workflow_id, workflow_stage_id)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [ref, member_type_id || null, name, name, '', gender || null, industry_id || null,
+      [ref, member_type_id || null, name, name, '', gender_id || null, industry_id || null,
        country_id || null, county_id || null, subcounty_id || null, logo_url,
        sanitize(phone), sanitize(email), sanitize(username), hash,
        'inactive', initStage?.workflow_id || null, initStage?.stage_id || null]
@@ -231,7 +233,7 @@ router.post('/auth/login', async (req, res, next) => {
 
     const [rows] = await pool.query(
       `SELECT id,username,password_hash,status,member_name,firstname,lastname,
-              gender,phone,email,member_ref_no
+              gender_id,phone,email,member_ref_no
        FROM members WHERE username=?`,
       [sanitize(username)]
     );
@@ -281,7 +283,7 @@ router.get('/auth/me', async (req, res, next) => {
 /* PUT /api/member-portal/profile */
 router.put('/profile', uploadLogo.single('logo'), async (req, res, next) => {
   try {
-    const { member_name, industry_id, country_id, county_id, subcounty_id, gender, phone, email } = req.body;
+    const { member_name, industry_id, country_id, county_id, subcounty_id, gender_id, phone, email } = req.body;
     if (!member_name)
       return res.status(400).json({ message: 'Member name is required' });
 
@@ -291,9 +293,9 @@ router.put('/profile', uploadLogo.single('logo'), async (req, res, next) => {
 
     await pool.query(
       `UPDATE members SET member_name=?,firstname=?,industry_id=?,country_id=?,county_id=?,
-         subcounty_id=?,logo_url=?,gender=?,phone=?,email=? WHERE id=?`,
+         subcounty_id=?,logo_url=?,gender_id=?,phone=?,email=? WHERE id=?`,
       [name, name, industry_id || null, country_id || null, county_id || null, subcounty_id || null,
-       logo_url, gender || null, sanitize(phone), sanitize(email), req.member.id]
+       logo_url, gender_id || null, sanitize(phone), sanitize(email), req.member.id]
     );
     const [[member]] = await pool.query(
       `SELECT ${SAFE_FIELDS} FROM members WHERE id=?`, [req.member.id]

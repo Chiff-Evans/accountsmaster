@@ -23,6 +23,7 @@ export default function Profile() {
   const [countries, setCountries]     = useState([]); // parameter_id 15
   const [counties, setCounties]       = useState([]); // parameter_id 16
   const [subcounties, setSubcounties] = useState([]); // parameter_id 17
+  const [genders, setGenders]         = useState([]); // parameter text_id 'genders'
 
   const displayName = member?.member_name || `${member?.firstname ?? ''} ${member?.lastname ?? ''}`.trim();
 
@@ -31,6 +32,7 @@ export default function Profile() {
     api.get('/parameters/values', { params: { parameter_id: 15 } }).then(r => setCountries(r.data));
     api.get('/parameters/values', { params: { parameter_id: 16 } }).then(r => setCounties(r.data));
     api.get('/parameters/values', { params: { parameter_id: 17 } }).then(r => setSubcounties(r.data));
+    api.get('/parameters/values', { params: { text_id: 'genders' } }).then(r => setGenders(r.data));
   }, []);
 
   const selectedCountyId = Form.useWatch('county_id', profileForm);
@@ -40,7 +42,7 @@ export default function Profile() {
     if (member) profileForm.setFieldsValue({
       member_name: member.member_name, industry_id: member.industry_id,
       country_id:  member.country_id,  county_id:   member.county_id, subcounty_id: member.subcounty_id,
-      gender:      member.gender,      phone:       member.phone,    email:        member.email,
+      gender_id:   member.gender_id,   phone:       member.phone,    email:        member.email,
     });
   }, [member]);
 
@@ -159,11 +161,9 @@ export default function Profile() {
           </FieldWrapper>
 
           <FieldWrapper label="Gender">
-            <Form.Item name="gender" style={{ marginBottom: 0 }}>
+            <Form.Item name="gender_id" style={{ marginBottom: 0 }}>
               <Select variant="borderless" allowClear style={{ marginLeft: -7, width: 'calc(100% + 7px)' }}>
-                <Select.Option value="Male">Male</Select.Option>
-                <Select.Option value="Female">Female</Select.Option>
-                <Select.Option value="Other">Other</Select.Option>
+                {genders.map(g => <Select.Option key={g.id} value={g.id}>{g.paramater_value}</Select.Option>)}
               </Select>
             </Form.Item>
           </FieldWrapper>

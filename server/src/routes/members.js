@@ -15,12 +15,13 @@ const canDelete = requirePermission('/members', 'can_delete');
 
 const LIST_SELECT = `
   SELECT c.id, c.member_ref_no, c.member_name, c.firstname, c.lastname, c.position_id, c.id_number,
-         c.gender, c.phone, c.email, DATE_FORMAT(c.reg_date, '%Y-%m-%d') AS reg_date, c.reg_fee, c.other_details, c.username, c.status,
+         c.gender_id, c.phone, c.email, DATE_FORMAT(c.reg_date, '%Y-%m-%d') AS reg_date, c.reg_fee, c.other_details, c.username, c.status,
          c.loyalty_points, c.workflow_id, c.workflow_stage_id, c.created_at, c.updated_at,
-         pos.paramater_value AS position_name,
+         pos.paramater_value AS position_name, gen.paramater_value AS gender_name,
          ws.stage_name, ws.stage_color, ws.responsible_group
   FROM members c
   LEFT JOIN parameter_values pos ON c.position_id = pos.id
+  LEFT JOIN parameter_values gen ON c.gender_id = gen.id
   LEFT JOIN workflow_stages ws   ON c.workflow_stage_id = ws.id
 `;
 
@@ -107,7 +108,7 @@ router.get('/:id/transitions', async (req, res, next) => {
 
 router.post('/', canCreate, async (req, res, next) => {
   try {
-    const { member_name, position_id, id_number, phone, email, gender, reg_date, reg_fee, other_details } = req.body;
+    const { member_name, position_id, id_number, phone, email, gender_id, reg_date, reg_fee, other_details } = req.body;
     if (!member_name) return res.status(400).json({ message: 'Member name is required' });
 
     const initStage = await getInitialStage('members');
@@ -115,11 +116,11 @@ router.post('/', canCreate, async (req, res, next) => {
 
     const [result] = await pool.query(
       `INSERT INTO members
-         (member_ref_no, member_name, firstname, lastname, position_id, id_number, phone, email, gender,
+         (member_ref_no, member_name, firstname, lastname, position_id, id_number, phone, email, gender_id,
           reg_date, reg_fee, other_details, workflow_id, workflow_stage_id)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [member_ref_no, member_name, member_name, '', position_id || null, id_number || null,
-       phone || null, email || null, gender || null, reg_date || null,
+       phone || null, email || null, gender_id || null, reg_date || null,
        reg_fee === '' || reg_fee == null ? null : reg_fee, other_details || null,
        initStage?.workflow_id || null, initStage?.stage_id || null]
     );
@@ -139,7 +140,7 @@ router.post('/', canCreate, async (req, res, next) => {
 
 router.put('/:id', canEdit, async (req, res, next) => {
   try {
-    const { member_name, position_id, id_number, phone, email, gender, reg_date, reg_fee, other_details, status } = req.body;
+    const { member_name, position_id, id_number, phone, email, gender_id, reg_date, reg_fee, other_details, status } = req.body;
     if (!member_name) return res.status(400).json({ message: 'Member name is required' });
 
     const [[existing]] = await pool.query('SELECT id FROM members WHERE id=?', [req.params.id]);
@@ -147,11 +148,11 @@ router.put('/:id', canEdit, async (req, res, next) => {
 
     await pool.query(
       `UPDATE members SET
-         member_name=?, firstname=?, position_id=?, id_number=?, phone=?, email=?, gender=?,
+         member_name=?, firstname=?, position_id=?, id_number=?, phone=?, email=?, gender_id=?,
          reg_date=?, reg_fee=?, other_details=?, status=?
        WHERE id=?`,
       [member_name, member_name, position_id || null, id_number || null, phone || null, email || null,
-       gender || null, reg_date || null, reg_fee === '' || reg_fee == null ? null : reg_fee,
+       gender_id || null, reg_date || null, reg_fee === '' || reg_fee == null ? null : reg_fee,
        other_details || null, status || 'active', req.params.id]
     );
     const [rows] = await pool.query(`${LIST_SELECT} WHERE c.id=? GROUP BY c.id`, [req.params.id]);
