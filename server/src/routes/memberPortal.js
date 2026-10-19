@@ -15,11 +15,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const logoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/advertisers');
+    const dir = path.join(__dirname, '../../uploads/members');
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `advertiser_${Date.now()}${path.extname(file.originalname)}`),
+  filename: (req, file, cb) => cb(null, `member_${Date.now()}${path.extname(file.originalname)}`),
 });
 const uploadLogo = multer({
   storage: logoStorage,
@@ -64,7 +64,7 @@ function parseJsonArray(v) {
   try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
 }
 
-const ADVERTISER_SECRET = process.env.ADVERTISER_JWT_SECRET || 'sm-advertiser-portal-2026';
+const MEMBER_SECRET = process.env.MEMBER_JWT_SECRET || 'sm-member-portal-2026';
 
 /* ── strip HTML tags to prevent stored XSS ── */
 function sanitize(val) {
@@ -72,22 +72,22 @@ function sanitize(val) {
   return val.replace(/<[^>]*>/g, '').trim() || null;
 }
 
-/* ── advertiser JWT middleware ── */
+/* ── member JWT middleware ── */
 const auth = async (req, res, next) => {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer '))
     return res.status(401).json({ message: 'No token provided' });
   try {
-    const decoded = jwt.verify(header.split(' ')[1], ADVERTISER_SECRET);
-    if (decoded.type !== 'advertiser')
+    const decoded = jwt.verify(header.split(' ')[1], MEMBER_SECRET);
+    if (decoded.type !== 'member')
       return res.status(401).json({ message: 'Invalid token' });
-    const [[advertiser]] = await pool.query(
-      'SELECT id, status FROM advertisers WHERE id=?', [decoded.id]
+    const [[member]] = await pool.query(
+      'SELECT id, status FROM members WHERE id=?', [decoded.id]
     );
-    if (!advertiser) return res.status(401).json({ message: 'Account not found' });
-    if (advertiser.status !== 'active')
-      return res.status(403).json({ message: `Account is ${advertiser.status}. Contact support.` });
-    req.advertiser = decoded;
+    if (!member) return res.status(401).json({ message: 'Account not found' });
+    if (member.status !== 'active')
+      return res.status(403).json({ message: `Account is ${member.status}. Contact support.` });
+    req.member = decoded;
     next();
   } catch {
     res.status(401).json({ message: 'Invalid or expired token' });
@@ -96,10 +96,10 @@ const auth = async (req, res, next) => {
 
 function issueToken(id, rememberMe = false) {
   const expiresIn = rememberMe ? '30d' : '1d';
-  return jwt.sign({ id, type: 'advertiser' }, ADVERTISER_SECRET, { expiresIn });
+  return jwt.sign({ id, type: 'member' }, MEMBER_SECRET, { expiresIn });
 }
 
-const SAFE_FIELDS = `id,advertiser_ref_no,advertiser_type_id,advertiser_name,firstname,lastname,gender,industry_id,
+const SAFE_FIELDS = `id,member_ref_no,member_type_id,member_name,firstname,lastname,gender,industry_id,
   country_id,county_id,subcounty_id,logo_url,phone,email,username,status,loyalty_points,
   workflow_id,workflow_stage_id,created_at`.replace(/\s+/g, ' ');
 
@@ -107,7 +107,7 @@ const SAFE_FIELDS = `id,advertiser_ref_no,advertiser_type_id,advertiser_name,fir
    PUBLIC — no auth
    ════════════════════════════════════════ */
 
-/* GET /api/advertiser-portal/business-info — configured business name (client-safe, no auth needed) */
+/* GET /api/member-portal/business-info — configured business name (client-safe, no auth needed) */
 router.get('/business-info', async (req, res, next) => {
   try {
     const [[row]] = await pool.query('SELECT business_name, logo FROM business WHERE id=1 LIMIT 1');
@@ -115,8 +115,8 @@ router.get('/business-info', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* GET /api/advertiser-portal/parameters/values?parameter_id=X — public
-   read-only lookup used to populate dropdowns (Advertiser Types, Industry,
+/* GET /api/member-portal/parameters/values?parameter_id=X — public
+   read-only lookup used to populate dropdowns (Member Types, Industry,
    Country/County/Sub-County, Campaign Types, Duration Units, Target
    Audience, etc.) both before and after login. */
 router.get('/parameters/values', async (req, res, next) => {
@@ -131,69 +131,69 @@ router.get('/parameters/values', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* POST /api/advertiser-portal/auth/send-verification-code — emails a
+/* POST /api/member-portal/auth/send-verification-code — emails a
    one-time code to the address the registrant entered. */
 router.post('/auth/send-verification-code', async (req, res, next) => {
   try {
     const email = (req.body.email || '').trim().toLowerCase();
     if (!EMAIL_RE.test(email)) return res.status(400).json({ message: 'A valid email is required' });
-    await sendVerificationCode('advertiser', email);
+    await sendVerificationCode('member', email);
     res.json({ message: 'Verification code sent' });
   } catch (err) { next(err); }
 });
 
-/* POST /api/advertiser-portal/auth/verify-code — confirms the code the
+/* POST /api/member-portal/auth/verify-code — confirms the code the
    registrant received, unlocking registration for that email. */
 router.post('/auth/verify-code', async (req, res, next) => {
   try {
     const email = (req.body.email || '').trim().toLowerCase();
     const { code } = req.body;
     if (!email || !code) return res.status(400).json({ message: 'Email and code are required' });
-    await verifyCode('advertiser', email, code);
+    await verifyCode('member', email, code);
     res.json({ message: 'Email verified' });
   } catch (err) { next(err); }
 });
 
-/* POST /api/advertiser-portal/auth/register — registers an Advertiser. Goes
-   straight into the Advertiser Registration Approval workflow; the account
+/* POST /api/member-portal/auth/register — registers a Member. Goes
+   straight into the Member Registration Approval workflow; the account
    stays `inactive` (can't log in) until MIS staff approves it. */
 router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) => {
   try {
-    const { advertiser_type_id, advertiser_name, industry_id, country_id, county_id, subcounty_id,
+    const { member_type_id, member_name, industry_id, country_id, county_id, subcounty_id,
             gender, phone, username, password } = req.body;
     const email = (req.body.email || '').trim().toLowerCase();
 
-    if (!advertiser_name || !username || !password)
-      return res.status(400).json({ message: 'Advertiser name, username and password are required' });
+    if (!member_name || !username || !password)
+      return res.status(400).json({ message: 'Member name, username and password are required' });
     if (password.length < 6)
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     if (!EMAIL_RE.test(email))
       return res.status(400).json({ message: 'A valid email is required' });
-    if (!(await isEmailVerified('advertiser', email)))
+    if (!(await isEmailVerified('member', email)))
       return res.status(400).json({ message: 'Please verify your email address before registering' });
 
     const [dup] = await pool.query(
-      'SELECT id FROM advertisers WHERE username=?', [sanitize(username)]
+      'SELECT id FROM members WHERE username=?', [sanitize(username)]
     );
     if (dup.length)
       return res.status(409).json({ message: 'Username already taken' });
 
     const hash = await bcrypt.hash(password, 10);
-    const logo_url = req.file ? `/uploads/advertisers/${req.file.filename}` : null;
-    const initStage = await getInitialStage('advertisers');
+    const logo_url = req.file ? `/uploads/members/${req.file.filename}` : null;
+    const initStage = await getInitialStage('members');
     // A file number is only assigned immediately if the initial stage is
     // configured to do so (Workflow config → stage → "Assign File Number");
     // otherwise it's left null and assigned later, on approval.
-    const ref = initStage?.assign_ref_no ? await generateRefNo('advertiser_registration') : null;
-    const name = sanitize(advertiser_name);
+    const ref = initStage?.assign_ref_no ? await generateRefNo('member_registration') : null;
+    const name = sanitize(member_name);
 
     const [r] = await pool.query(
-      `INSERT INTO advertisers
-         (advertiser_ref_no, advertiser_type_id, advertiser_name, firstname, lastname, gender, industry_id,
+      `INSERT INTO members
+         (member_ref_no, member_type_id, member_name, firstname, lastname, gender, industry_id,
           country_id, county_id, subcounty_id, logo_url, phone, email, username, password_hash,
           status, workflow_id, workflow_stage_id)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [ref, advertiser_type_id || null, name, name, '', gender || null, industry_id || null,
+      [ref, member_type_id || null, name, name, '', gender || null, industry_id || null,
        country_id || null, county_id || null, subcounty_id || null, logo_url,
        sanitize(phone), sanitize(email), sanitize(username), hash,
        'inactive', initStage?.workflow_id || null, initStage?.stage_id || null]
@@ -202,27 +202,27 @@ router.post('/auth/register', uploadLogo.single('logo'), async (req, res, next) 
     if (initStage) {
       await recordHistory({
         workflowId: initStage.workflow_id, processTypeId: initStage.process_type_id,
-        entityType: 'advertiser', entityId: r.insertId, entityRef: ref,
-        toStageId: initStage.stage_id, notes: 'Registered via advertiser portal — pending approval',
+        entityType: 'member', entityId: r.insertId, entityRef: ref,
+        toStageId: initStage.stage_id, notes: 'Registered via member portal — pending approval',
       });
     }
 
-    const [[advertiser]] = await pool.query(
-      `SELECT ${SAFE_FIELDS} FROM advertisers WHERE id=?`, [r.insertId]
+    const [[member]] = await pool.query(
+      `SELECT ${SAFE_FIELDS} FROM members WHERE id=?`, [r.insertId]
     );
-    await notifyAdmins('advertiser_registered', {
-      title: 'New advertiser registration',
+    await notifyAdmins('member_registered', {
+      title: 'New member registration',
       body: `${name}${ref ? ` (${ref})` : ''} registered and is awaiting review.`,
-      url: '/advertisers',
+      url: '/members',
     });
     res.status(201).json({
       message: 'Registration submitted. Your account will be reviewed before you can log in.',
-      advertiser,
+      member,
     });
   } catch (err) { next(err); }
 });
 
-/* POST /api/advertiser-portal/auth/login */
+/* POST /api/member-portal/auth/login */
 router.post('/auth/login', async (req, res, next) => {
   try {
     const { username, password, remember_me } = req.body;
@@ -230,9 +230,9 @@ router.post('/auth/login', async (req, res, next) => {
       return res.status(400).json({ message: 'Username and password are required' });
 
     const [rows] = await pool.query(
-      `SELECT id,username,password_hash,status,advertiser_name,firstname,lastname,
-              gender,phone,email,advertiser_ref_no
-       FROM advertisers WHERE username=?`,
+      `SELECT id,username,password_hash,status,member_name,firstname,lastname,
+              gender,phone,email,member_ref_no
+       FROM members WHERE username=?`,
       [sanitize(username)]
     );
     if (!rows.length || !rows[0].password_hash)
@@ -249,8 +249,8 @@ router.post('/auth/login', async (req, res, next) => {
     if (!await bcrypt.compare(password, c.password_hash))
       return res.status(401).json({ message: 'Invalid username or password' });
 
-    const { password_hash, ...advertiserData } = c;
-    res.json({ token: issueToken(c.id, !!remember_me), advertiser: advertiserData });
+    const { password_hash, ...memberData } = c;
+    res.json({ token: issueToken(c.id, !!remember_me), member: memberData });
   } catch (err) { next(err); }
 });
 
@@ -258,9 +258,9 @@ router.post('/auth/login', async (req, res, next) => {
    PROTECTED — all routes below require auth
    ════════════════════════════════════════ */
 router.use(auth);
-mountNotificationRoutes(router, 'advertiser', req => req.advertiser.id);
+mountNotificationRoutes(router, 'member', req => req.member.id);
 
-/* GET /api/advertiser-portal/loyalty-status — is the loyalty programme currently active? (advertiser-safe, no other config exposed) */
+/* GET /api/member-portal/loyalty-status — is the loyalty programme currently active? (member-safe, no other config exposed) */
 router.get('/loyalty-status', async (req, res, next) => {
   try {
     const [[row]] = await pool.query('SELECT is_active FROM loyalty_config WHERE id=1 LIMIT 1');
@@ -268,41 +268,41 @@ router.get('/loyalty-status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* GET /api/advertiser-portal/auth/me */
+/* GET /api/member-portal/auth/me */
 router.get('/auth/me', async (req, res, next) => {
   try {
-    const [[advertiser]] = await pool.query(
-      `SELECT ${SAFE_FIELDS} FROM advertisers WHERE id=?`, [req.advertiser.id]
+    const [[member]] = await pool.query(
+      `SELECT ${SAFE_FIELDS} FROM members WHERE id=?`, [req.member.id]
     );
-    res.json(advertiser);
+    res.json(member);
   } catch (err) { next(err); }
 });
 
-/* PUT /api/advertiser-portal/profile */
+/* PUT /api/member-portal/profile */
 router.put('/profile', uploadLogo.single('logo'), async (req, res, next) => {
   try {
-    const { advertiser_name, industry_id, country_id, county_id, subcounty_id, gender, phone, email } = req.body;
-    if (!advertiser_name)
-      return res.status(400).json({ message: 'Advertiser name is required' });
+    const { member_name, industry_id, country_id, county_id, subcounty_id, gender, phone, email } = req.body;
+    if (!member_name)
+      return res.status(400).json({ message: 'Member name is required' });
 
-    const [[existing]] = await pool.query('SELECT logo_url FROM advertisers WHERE id=?', [req.advertiser.id]);
-    const logo_url = req.file ? `/uploads/advertisers/${req.file.filename}` : existing?.logo_url;
-    const name = sanitize(advertiser_name);
+    const [[existing]] = await pool.query('SELECT logo_url FROM members WHERE id=?', [req.member.id]);
+    const logo_url = req.file ? `/uploads/members/${req.file.filename}` : existing?.logo_url;
+    const name = sanitize(member_name);
 
     await pool.query(
-      `UPDATE advertisers SET advertiser_name=?,firstname=?,industry_id=?,country_id=?,county_id=?,
+      `UPDATE members SET member_name=?,firstname=?,industry_id=?,country_id=?,county_id=?,
          subcounty_id=?,logo_url=?,gender=?,phone=?,email=? WHERE id=?`,
       [name, name, industry_id || null, country_id || null, county_id || null, subcounty_id || null,
-       logo_url, gender || null, sanitize(phone), sanitize(email), req.advertiser.id]
+       logo_url, gender || null, sanitize(phone), sanitize(email), req.member.id]
     );
-    const [[advertiser]] = await pool.query(
-      `SELECT ${SAFE_FIELDS} FROM advertisers WHERE id=?`, [req.advertiser.id]
+    const [[member]] = await pool.query(
+      `SELECT ${SAFE_FIELDS} FROM members WHERE id=?`, [req.member.id]
     );
-    res.json(advertiser);
+    res.json(member);
   } catch (err) { next(err); }
 });
 
-/* POST /api/advertiser-portal/auth/change-password */
+/* POST /api/member-portal/auth/change-password */
 router.post('/auth/change-password', async (req, res, next) => {
   try {
     const { current_password, new_password } = req.body;
@@ -312,7 +312,7 @@ router.post('/auth/change-password', async (req, res, next) => {
       return res.status(400).json({ message: 'New password must be at least 6 characters' });
 
     const [[row]] = await pool.query(
-      'SELECT password_hash FROM advertisers WHERE id=?', [req.advertiser.id]
+      'SELECT password_hash FROM members WHERE id=?', [req.member.id]
     );
     if (!row?.password_hash)
       return res.status(400).json({ message: 'No password set on this account' });
@@ -320,8 +320,8 @@ router.post('/auth/change-password', async (req, res, next) => {
       return res.status(400).json({ message: 'Current password is incorrect' });
 
     await pool.query(
-      'UPDATE advertisers SET password_hash=? WHERE id=?',
-      [await bcrypt.hash(new_password, 10), req.advertiser.id]
+      'UPDATE members SET password_hash=? WHERE id=?',
+      [await bcrypt.hash(new_password, 10), req.member.id]
     );
     res.json({ message: 'Password changed successfully' });
   } catch (err) { next(err); }
@@ -350,24 +350,24 @@ function withCampaignJson(row) {
   return { ...row, posters: parseJsonArray(row.posters), attachments: parseJsonArray(row.attachments), target_audience: parseJsonArray(row.target_audience) };
 }
 
-/* GET /api/advertiser-portal/campaigns — the logged-in advertiser's own campaigns */
+/* GET /api/member-portal/campaigns — the logged-in member's own campaigns */
 router.get('/campaigns', async (req, res, next) => {
   try {
-    const [rows] = await pool.query(`${CAMPAIGN_SELECT} WHERE c.advertiser_id=? ORDER BY c.created_on DESC`, [req.advertiser.id]);
+    const [rows] = await pool.query(`${CAMPAIGN_SELECT} WHERE c.member_id=? ORDER BY c.created_on DESC`, [req.member.id]);
     res.json(rows.map(withCampaignJson));
   } catch (err) { next(err); }
 });
 
-/* GET /api/advertiser-portal/campaigns/:id */
+/* GET /api/member-portal/campaigns/:id */
 router.get('/campaigns/:id', async (req, res, next) => {
   try {
-    const [rows] = await pool.query(`${CAMPAIGN_SELECT} WHERE c.id=? AND c.advertiser_id=?`, [req.params.id, req.advertiser.id]);
+    const [rows] = await pool.query(`${CAMPAIGN_SELECT} WHERE c.id=? AND c.member_id=?`, [req.params.id, req.member.id]);
     if (!rows.length) return res.status(404).json({ message: 'Campaign not found' });
     res.json(withCampaignJson(rows[0]));
   } catch (err) { next(err); }
 });
 
-/* POST /api/advertiser-portal/campaigns — create a campaign; enters the
+/* POST /api/member-portal/campaigns — create a campaign; enters the
    Campaign Approval Workflow at its initial ("Draft") stage. */
 router.post('/campaigns', uploadCampaignFiles, async (req, res, next) => {
   try {
@@ -387,12 +387,12 @@ router.post('/campaigns', uploadCampaignFiles, async (req, res, next) => {
 
     const [r] = await pool.query(
       `INSERT INTO campaigns
-         (file_no, advertiser_id, campaign_title, campaign_type_id, description, posters, attachments,
+         (file_no, member_id, campaign_title, campaign_type_id, description, posters, attachments,
           website_link, whatsapp_number, promo_code, duration_value, duration_unit_id, target_audience,
           target_country_id, target_county_id, target_subcounty_id, budget, comments,
           workflow_id, workflow_stage_id)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [file_no, req.advertiser.id, sanitize(campaign_title), campaign_type_id || null, sanitize(description),
+      [file_no, req.member.id, sanitize(campaign_title), campaign_type_id || null, sanitize(description),
        posters, attachments, sanitize(website_link), sanitize(whatsapp_number), sanitize(promo_code),
        duration_value || null, duration_unit_id || null, target_audience, target_country_id || null,
        target_county_id || null, target_subcounty_id || null, budget || null, sanitize(comments),
@@ -403,7 +403,7 @@ router.post('/campaigns', uploadCampaignFiles, async (req, res, next) => {
       await recordHistory({
         workflowId: initStage.workflow_id, processTypeId: initStage.process_type_id,
         entityType: 'campaign', entityId: r.insertId, entityRef: file_no,
-        toStageId: initStage.stage_id, notes: `Created via advertiser portal (advertiser #${req.advertiser.id})`,
+        toStageId: initStage.stage_id, notes: `Created via member portal (member #${req.member.id})`,
       });
     }
 
@@ -412,14 +412,14 @@ router.post('/campaigns', uploadCampaignFiles, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* PUT /api/advertiser-portal/campaigns/:id — edit own campaign while still in Draft */
+/* PUT /api/member-portal/campaigns/:id — edit own campaign while still in Draft */
 router.put('/campaigns/:id', uploadCampaignFiles, async (req, res, next) => {
   try {
     const [[own]] = await pool.query(
       `SELECT c.id, c.posters, c.attachments, ws.stage_name, ws.is_terminal
        FROM campaigns c LEFT JOIN workflow_stages ws ON c.workflow_stage_id = ws.id
-       WHERE c.id=? AND c.advertiser_id=?`,
-      [req.params.id, req.advertiser.id]
+       WHERE c.id=? AND c.member_id=?`,
+      [req.params.id, req.member.id]
     );
     if (!own) return res.status(404).json({ message: 'Campaign not found' });
     if (own.stage_name && own.stage_name !== 'Draft')
@@ -453,14 +453,14 @@ router.put('/campaigns/:id', uploadCampaignFiles, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* POST /api/advertiser-portal/campaigns/:id/submit — Draft -> Submitted for Review */
+/* POST /api/member-portal/campaigns/:id/submit — Draft -> Submitted for Review */
 router.post('/campaigns/:id/submit', async (req, res, next) => {
   try {
     const [[own]] = await pool.query(
       `SELECT c.id, c.file_no, c.workflow_id, c.workflow_stage_id, ws.stage_name
        FROM campaigns c LEFT JOIN workflow_stages ws ON c.workflow_stage_id = ws.id
-       WHERE c.id=? AND c.advertiser_id=?`,
-      [req.params.id, req.advertiser.id]
+       WHERE c.id=? AND c.member_id=?`,
+      [req.params.id, req.member.id]
     );
     if (!own) return res.status(404).json({ message: 'Campaign not found' });
     if (own.stage_name !== 'Draft')
@@ -479,11 +479,11 @@ router.post('/campaigns/:id/submit', async (req, res, next) => {
       workflowId: own.workflow_id, entityType: 'campaign', entityId: own.id, entityRef: own.file_no,
       fromStageId: own.workflow_stage_id, toStageId: transition.to_stage_id,
       fromStatus: own.stage_name, toStatus: transition.to_stage_name,
-      notes: `Submitted for review via advertiser portal (advertiser #${req.advertiser.id})`,
+      notes: `Submitted for review via member portal (member #${req.member.id})`,
     });
     await notifyAdmins('campaign_submitted', {
       title: 'New campaign submitted',
-      body: `A campaign${own.file_no ? ` (${own.file_no})` : ''} was submitted for review from the advertiser portal.`,
+      body: `A campaign${own.file_no ? ` (${own.file_no})` : ''} was submitted for review from the member portal.`,
       url: '/campaigns',
     });
     res.json({ message: 'Campaign submitted for review', stage_name: transition.to_stage_name });
@@ -491,6 +491,6 @@ router.post('/campaigns/:id/submit', async (req, res, next) => {
 });
 
 /* ── Web Push ─────────────────────────────────────────────────────────────── */
-mountPushRoutes(router, 'advertiser', req => req.advertiser.id, auth);
+mountPushRoutes(router, 'member', req => req.member.id, auth);
 
 module.exports = router;

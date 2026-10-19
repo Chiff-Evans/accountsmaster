@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Separate axios instance + token store from the advertiser (business) portal
-// API — a brand ambassador session and an advertiser session are independent
+// Separate axios instance + token store from the member (business) portal
+// API — a brand ambassador session and a member session are independent
 // and can coexist.
 const brandAmbassadorApi = axios.create({
   baseURL: '/api/brand-ambassador-portal',
@@ -23,7 +23,7 @@ brandAmbassadorApi.interceptors.response.use(
       // Only force-navigate if we're actually inside the brand-ambassador portal.
       // This also runs from a background session check on mount (App-wide
       // provider), which fires on every route — a stale/expired token must not
-      // hijack an unrelated public page like /register or the advertiser side.
+      // hijack an unrelated public page like /register or the member side.
       const path = window.location.pathname;
       if (path.startsWith('/brand-ambassador/') && path !== '/brand-ambassador/login') {
         window.location.href = '/brand-ambassador/login';

@@ -86,7 +86,7 @@ async function resolveEndDate(startDate, durationValue, durationUnitId) {
 
 const LIST_SELECT = `
   SELECT c.*,
-         cl.advertiser_name, cl.firstname AS advertiser_firstname, cl.lastname AS advertiser_lastname,
+         cl.member_name, cl.firstname AS member_firstname, cl.lastname AS member_lastname,
          ct.paramater_value  AS campaign_type_name,
          du.paramater_value  AS duration_unit_name,
          tco.paramater_value AS target_country_name, tcy.paramater_value AS target_county_name,
@@ -94,7 +94,7 @@ const LIST_SELECT = `
          ws.stage_name, ws.stage_color, ws.responsible_group, ws.is_terminal,
          (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.campaign_id = c.id) AS paid_amount
   FROM campaigns c
-  LEFT JOIN advertisers cl       ON c.advertiser_id = cl.id
+  LEFT JOIN members cl       ON c.member_id = cl.id
   LEFT JOIN parameter_values ct  ON c.campaign_type_id = ct.id
   LEFT JOIN parameter_values du  ON c.duration_unit_id = du.id
   LEFT JOIN parameter_values tco ON c.target_country_id = tco.id
@@ -107,10 +107,10 @@ const LIST_SELECT = `
    subquery above; discount defaults to 0 when unset). */
 function withDisplayName(row) {
   if (!row) return row;
-  const advertiser_display_name = row.advertiser_name || [row.advertiser_firstname, row.advertiser_lastname].filter(Boolean).join(' ');
+  const member_display_name = row.member_name || [row.member_firstname, row.member_lastname].filter(Boolean).join(' ');
   const balance = Number(row.budget || 0) - Number(row.discount || 0) - Number(row.paid_amount || 0);
   return {
-    ...row, advertiser_display_name, balance,
+    ...row, member_display_name, balance,
     posters: parseJsonArray(row.posters), attachments: parseJsonArray(row.attachments), target_audience: parseJsonArray(row.target_audience),
   };
 }
@@ -142,8 +142,8 @@ router.get('/', async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
     const search = req.query.search ? `%${req.query.search}%` : '%';
-    const advertiserFilter = req.query.advertiser_id ? 'AND c.advertiser_id=?' : '';
-    const advertiserParam = req.query.advertiser_id ? [req.query.advertiser_id] : [];
+    const memberFilter = req.query.member_id ? 'AND c.member_id=?' : '';
+    const memberParam = req.query.member_id ? [req.query.member_id] : [];
     // No stage explicitly picked → hide stages staff marked "don't show in
     // grid by default" (e.g. Rejected/Cancelled). Picking one (even a hidden
     // one) shows exactly that stage's records, overriding the default.
@@ -152,15 +152,15 @@ router.get('/', async (req, res, next) => {
 
     const [rows] = await pool.query(
       `${LIST_SELECT}
-       WHERE (c.campaign_title LIKE ? OR c.file_no LIKE ?) ${advertiserFilter} ${stageFilter}
+       WHERE (c.campaign_title LIKE ? OR c.file_no LIKE ?) ${memberFilter} ${stageFilter}
        ORDER BY c.created_on DESC LIMIT ? OFFSET ?`,
-      [search, search, ...advertiserParam, ...stageParam, limit, offset]
+      [search, search, ...memberParam, ...stageParam, limit, offset]
     );
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) AS total FROM campaigns c
        LEFT JOIN workflow_stages ws ON c.workflow_stage_id = ws.id
-       WHERE (c.campaign_title LIKE ? OR c.file_no LIKE ?) ${advertiserFilter} ${stageFilter}`,
-      [search, search, ...advertiserParam, ...stageParam]
+       WHERE (c.campaign_title LIKE ? OR c.file_no LIKE ?) ${memberFilter} ${stageFilter}`,
+      [search, search, ...memberParam, ...stageParam]
     );
     res.json({ data: rows.map(withDisplayName), total, page, limit });
   } catch (err) { next(err); }
@@ -200,10 +200,10 @@ router.get('/:id/transitions', async (req, res, next) => {
 
 router.post('/', canCreate, uploadFields, async (req, res, next) => {
   try {
-    const { advertiser_id, campaign_title, campaign_type_id, description, website_link, whatsapp_number,
+    const { member_id, campaign_title, campaign_type_id, description, website_link, whatsapp_number,
             promo_code, duration_value, duration_unit_id, start_date, target_country_id, target_county_id,
             target_subcounty_id, budget, discount, brand_ambassador_pay_percentage, comments } = req.body;
-    if (!advertiser_id) return res.status(400).json({ message: 'Advertiser is required' });
+    if (!member_id) return res.status(400).json({ message: 'Member is required' });
     if (!campaign_title) return res.status(400).json({ message: 'Campaign title is required' });
 
     const posters = JSON.stringify((req.files?.posters || []).map(f => `/uploads/campaigns/${f.filename}`));
@@ -218,12 +218,12 @@ router.post('/', canCreate, uploadFields, async (req, res, next) => {
 
     const [result] = await pool.query(
       `INSERT INTO campaigns
-         (file_no, advertiser_id, campaign_title, campaign_type_id, description, posters, attachments,
+         (file_no, member_id, campaign_title, campaign_type_id, description, posters, attachments,
           website_link, whatsapp_number, promo_code, duration_value, duration_unit_id, start_date, end_date,
           target_audience, target_country_id, target_county_id, target_subcounty_id, budget, discount,
           brand_ambassador_pay_percentage, comments, workflow_id, workflow_stage_id, created_by)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [file_no, advertiser_id, campaign_title, campaign_type_id || null, description || null, posters, attachments,
+      [file_no, member_id, campaign_title, campaign_type_id || null, description || null, posters, attachments,
        website_link || null, whatsapp_number || null, promo_code || null, duration_value || null,
        duration_unit_id || null, start_date || null, end_date, target_audience, target_country_id || null,
        target_county_id || null, target_subcounty_id || null, budget || null, discount || 0,
@@ -246,10 +246,10 @@ router.post('/', canCreate, uploadFields, async (req, res, next) => {
 
 router.put('/:id', canEdit, uploadFields, async (req, res, next) => {
   try {
-    const { advertiser_id, campaign_title, campaign_type_id, description, website_link, whatsapp_number,
+    const { member_id, campaign_title, campaign_type_id, description, website_link, whatsapp_number,
             promo_code, duration_value, duration_unit_id, start_date, target_country_id, target_county_id,
             target_subcounty_id, budget, discount, brand_ambassador_pay_percentage, comments } = req.body;
-    if (!advertiser_id) return res.status(400).json({ message: 'Advertiser is required' });
+    if (!member_id) return res.status(400).json({ message: 'Member is required' });
     if (!campaign_title) return res.status(400).json({ message: 'Campaign title is required' });
 
     const [[existing]] = await pool.query('SELECT posters, attachments FROM campaigns WHERE id=?', [req.params.id]);
@@ -267,12 +267,12 @@ router.put('/:id', canEdit, uploadFields, async (req, res, next) => {
 
     await pool.query(
       `UPDATE campaigns SET
-         advertiser_id=?, campaign_title=?, campaign_type_id=?, description=?, posters=?, attachments=?,
+         member_id=?, campaign_title=?, campaign_type_id=?, description=?, posters=?, attachments=?,
          website_link=?, whatsapp_number=?, promo_code=?, duration_value=?, duration_unit_id=?,
          start_date=?, end_date=?, target_audience=?, target_country_id=?, target_county_id=?,
          target_subcounty_id=?, budget=?, discount=?, brand_ambassador_pay_percentage=?, comments=?, updated_by=?
        WHERE id=?`,
-      [advertiser_id, campaign_title, campaign_type_id || null, description || null, posters, attachments,
+      [member_id, campaign_title, campaign_type_id || null, description || null, posters, attachments,
        website_link || null, whatsapp_number || null, promo_code || null, duration_value || null,
        duration_unit_id || null, start_date || null, end_date, target_audience, target_country_id || null,
        target_county_id || null, target_subcounty_id || null, budget || null, discount || 0,
@@ -297,7 +297,7 @@ router.post('/:id/transition', canEdit, async (req, res, next) => {
     const { transition_id, notes } = req.body;
 
     const [[campaign]] = await pool.query(
-      `SELECT c.id, c.file_no, c.advertiser_id, c.workflow_id, c.workflow_stage_id,
+      `SELECT c.id, c.file_no, c.member_id, c.workflow_id, c.workflow_stage_id,
               ws.responsible_group, ws.stage_name AS current_stage_name, w.process_type_id
        FROM campaigns c
        JOIN workflow_stages ws ON c.workflow_stage_id = ws.id
@@ -342,7 +342,7 @@ router.post('/:id/transition', canEdit, async (req, res, next) => {
     /* Award loyalty points if this stage qualifies (best-effort) */
     await maybeAwardLoyaltyPoints({ ...campaign, workflow_stage_id: transition.to_stage_id });
 
-    await notify('advertiser', campaign.advertiser_id, 'campaign_stage_changed', {
+    await notify('member', campaign.member_id, 'campaign_stage_changed', {
       title: `Campaign ${transition.to_stage_name}`,
       body: `"${fileNo || 'Campaign'}" is now "${transition.to_stage_name}".`,
       url: `/campaigns/${encodeId(campaign.id)}`,

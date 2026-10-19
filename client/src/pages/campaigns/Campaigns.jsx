@@ -60,7 +60,7 @@ export default function Campaigns() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [advertisers, setAdvertisers] = useState([]);
+  const [members, setMembers] = useState([]);
   const [brandAmbassadorsList, setBrandAmbassadorsList] = useState([]);
   const [campaignTypes, setCampaignTypes] = useState([]); // parameter_id 19
   const [durationUnits, setDurationUnits] = useState([]); // parameter_id 20
@@ -132,7 +132,7 @@ export default function Campaigns() {
 
   useEffect(() => {
     load();
-    api.get('/advertisers', { params: { limit: 500 } }).then(r => setAdvertisers(r.data.data ?? r.data));
+    api.get('/members', { params: { limit: 500 } }).then(r => setMembers(r.data.data ?? r.data));
     api.get('/brand-ambassadors', { params: { limit: 500 } }).then(r => setBrandAmbassadorsList(r.data.data ?? r.data));
     api.get('/parameters/values', { params: { parameter_id: 19 } }).then(r => setCampaignTypes(r.data));
     api.get('/parameters/values', { params: { parameter_id: 20 } }).then(r => setDurationUnits(r.data));
@@ -178,7 +178,7 @@ export default function Campaigns() {
     setAttachmentFiles([]); setExistingAttachments(parseIds(r.attachments));
     setFileNo(r.file_no);
     form.setFieldsValue({
-      advertiser_id: r.advertiser_id,
+      member_id: r.member_id,
       campaign_title: r.campaign_title,
       campaign_type_id: r.campaign_type_id,
       description: r.description,
@@ -277,7 +277,7 @@ export default function Campaigns() {
     try {
       const formData = new FormData();
       Object.entries({
-        advertiser_id: vals.advertiser_id, campaign_title: vals.campaign_title,
+        member_id: vals.member_id, campaign_title: vals.campaign_title,
         campaign_type_id: vals.campaign_type_id ?? '', description: vals.description || '',
         website_link: vals.website_link || '', whatsapp_number: vals.whatsapp_number || '',
         promo_code: vals.promo_code || '', duration_value: vals.duration_value ?? '',
@@ -352,7 +352,7 @@ export default function Campaigns() {
     try {
       await api.post('/payments', {
         campaign_id: payingCampaign.id,
-        advertiser_id: payingCampaign.advertiser_id,
+        member_id: payingCampaign.member_id,
         ...vals,
         payment_date: vals.payment_date ? vals.payment_date.format('YYYY-MM-DD') : null,
       });
@@ -400,7 +400,7 @@ export default function Campaigns() {
   const allColumns = [
     { title: 'File No', dataIndex: 'file_no', key: 'file_no', render: v => v ? <Tag color="blue">{v}</Tag> : '—' },
     { title: 'Campaign', dataIndex: 'campaign_title', key: 'title', mobileHeaderSize: 13 },
-    { title: 'Advertiser', key: 'advertiser', render: (_, r) => r.advertiser_display_name || '—' },
+    { title: 'Member', key: 'member', render: (_, r) => r.member_display_name || '—' },
     { title: 'Type', dataIndex: 'campaign_type_name', key: 'type', mobileExpanded: true, render: v => v ? <Tag>{v}</Tag> : '—' },
     { title: 'Duration', key: 'duration', mobileExpanded: true,
       render: (_, r) => r.duration_value ? `${r.duration_value} ${r.duration_unit_name || ''}` : '—' },
@@ -507,10 +507,10 @@ export default function Campaigns() {
             <Input readOnly value={fileNo || '—'} style={{ color: '#1677ff', fontWeight: 600, marginBottom: 20 }} />
           </LabelField>
 
-          <LabelField label="Advertiser" required>
-            <Form.Item name="advertiser_id" rules={[{ required: true }]} style={{ marginBottom: 20 }}>
+          <LabelField label="Member" required>
+            <Form.Item name="member_id" rules={[{ required: true }]} style={{ marginBottom: 20 }}>
               <Select showSearch optionFilterProp="children">
-                {advertisers.map(c => <Select.Option key={c.id} value={c.id}>{c.advertiser_name || `${c.firstname} ${c.lastname}`}</Select.Option>)}
+                {members.map(c => <Select.Option key={c.id} value={c.id}>{c.member_name || `${c.firstname} ${c.lastname}`}</Select.Option>)}
               </Select>
             </Form.Item>
           </LabelField>
@@ -764,7 +764,7 @@ export default function Campaigns() {
               background: '#fafafa', minHeight: 32, display: 'flex', alignItems: 'center',
               marginBottom: 20, fontSize: 13,
             }}>
-              {payingCampaign?.advertiser_display_name} — {payingCampaign?.campaign_title}
+              {payingCampaign?.member_display_name} — {payingCampaign?.campaign_title}
             </div>
           </LabelField>
 
@@ -1044,7 +1044,7 @@ export default function Campaigns() {
                         dataSource={campaignPayments}
                         columns={[
                           { title: 'Ref No', dataIndex: 'file_no', key: 'file_no', render: v => v ? <Tag color="blue">{v}</Tag> : '—' },
-                          { title: 'Advertiser', dataIndex: 'advertiser_name', key: 'advertiser' },
+                          { title: 'Member', dataIndex: 'member_name', key: 'member' },
                           { title: 'Mode', dataIndex: 'payment_mode_name', key: 'mode', render: v => v ? <Tag>{v}</Tag> : '—' },
                           { title: 'Amount', dataIndex: 'amount', key: 'amount', render: money },
                           { title: 'Date', dataIndex: 'payment_date', key: 'date', render: dateFmt },

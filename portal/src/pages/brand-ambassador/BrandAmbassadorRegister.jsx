@@ -243,7 +243,7 @@ export default function BrandAmbassadorRegister() {
         </div>
         <div style={{ textAlign: 'center', marginTop: 8 }}>
           <Typography.Text type="secondary">Are you a business? </Typography.Text>
-          <Link to="/register" style={{ fontWeight: 600, color: '#4c8dff' }}>Register as an Advertiser</Link>
+          <Link to="/register" style={{ fontWeight: 600, color: '#4c8dff' }}>Register as a Member</Link>
         </div>
       </div>
     </div>

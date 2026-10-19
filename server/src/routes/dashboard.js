@@ -52,8 +52,8 @@ router.get("/summary", async (req, res, next) => {
       expenditureF.params
     );
 
-    const [[advertisers]] = await pool.query(
-      'SELECT COUNT(*) AS total FROM advertisers WHERE status="active"',
+    const [[members]] = await pool.query(
+      'SELECT COUNT(*) AS total FROM members WHERE status="active"',
     );
 
     const [[brandAmbassadors]] = await pool.query(
@@ -64,7 +64,7 @@ router.get("/summary", async (req, res, next) => {
       total_campaigns: campaigns.total,
       total_revenue: revenue.total,
       total_expenditure: expenditure.total,
-      total_advertisers: advertisers.total,
+      total_members: members.total,
       total_brand_ambassadors: brandAmbassadors.total,
     });
   } catch (err) {
@@ -159,9 +159,9 @@ router.get("/recent-campaigns", async (req, res, next) => {
     const [rows] = await pool.query(
       `SELECT cm.id, cm.campaign_title, cm.budget, cm.created_on,
               ws.stage_name, ws.stage_color,
-              COALESCE(cl.advertiser_name, CONCAT(cl.firstname,' ',cl.lastname)) AS advertiser_name
+              COALESCE(cl.member_name, CONCAT(cl.firstname,' ',cl.lastname)) AS member_name
        FROM campaigns cm
-       LEFT JOIN advertisers cl     ON cm.advertiser_id = cl.id
+       LEFT JOIN members cl     ON cm.member_id = cl.id
        LEFT JOIN workflow_stages ws ON cm.workflow_stage_id = ws.id
        WHERE ${pw}
        ORDER BY cm.created_on DESC LIMIT 10`,

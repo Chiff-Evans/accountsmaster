@@ -198,7 +198,7 @@ export default function Dashboard() {
 
   const campaignCols = [
     { title: 'Campaign', dataIndex: 'campaign_title', key: 'campaign' },
-    { title: 'Advertiser', dataIndex: 'advertiser_name', key: 'advertiser' },
+    { title: 'Member', dataIndex: 'member_name', key: 'member' },
     { title: 'Budget', dataIndex: 'budget', key: 'budget', align: 'right',
       render: v => v != null ? Number(v).toLocaleString() : '—' },
     { title: 'Stage', key: 'stage',
@@ -308,9 +308,9 @@ export default function Dashboard() {
               formatter={v => Number(v ?? 0).toLocaleString()} />
           </Col>
         )}
-        {vis.stat_advertisers && (
+        {vis.stat_members && (
           <Col xs={12} sm={8} xl={4}>
-            <StatCard title="Active Advertisers" value={summary?.total_advertisers}
+            <StatCard title="Active Members" value={summary?.total_members}
               icon={<TeamOutlined />} color="#722ed1" isMobile={isMobile} />
           </Col>
         )}

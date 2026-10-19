@@ -9,7 +9,7 @@ import api from '../../api';
 import brandAmbassadorApi from '../../brandAmbassadorApi';
 import { hashPassword } from '../../utils/crypto';
 
-function AdvertiserLoginForm() {
+function MemberLoginForm() {
   const { login } = useAuth();
   const navigate   = useNavigate();
   const [error, setError]     = useState('');
@@ -23,7 +23,7 @@ function AdvertiserLoginForm() {
         password:    await hashPassword(vals.password),
         remember_me: !!vals.remember_me,
       });
-      login(data.token, data.advertiser);
+      login(data.token, data.member);
       navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
@@ -67,7 +67,7 @@ function AdvertiserLoginForm() {
 
       <div style={{ textAlign: 'center', marginTop: 20 }}>
         <Typography.Text type="secondary">Don't have an account? </Typography.Text>
-        <Link to="/register" style={{ fontWeight: 600, color: '#4c8dff' }}>Register as an Advertiser</Link>
+        <Link to="/register" style={{ fontWeight: 600, color: '#4c8dff' }}>Register as a Member</Link>
       </div>
     </>
   );
@@ -168,9 +168,9 @@ export default function Login() {
               children: <BrandAmbassadorLoginForm />,
             },
             {
-              key: 'advertiser',
-              label: <span><BankOutlined /> Advertiser</span>,
-              children: <AdvertiserLoginForm />,
+              key: 'member',
+              label: <span><BankOutlined /> Member</span>,
+              children: <MemberLoginForm />,
             },
           ]}
         />

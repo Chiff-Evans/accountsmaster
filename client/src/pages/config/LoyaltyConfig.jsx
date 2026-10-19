@@ -217,7 +217,7 @@ export default function LoyaltyConfig() {
                 {isActiveWatch
                   ? <CheckCircleOutlined style={{ fontSize: 15 }} />
                   : <CloseCircleOutlined style={{ fontSize: 15 }} />}
-                {isActiveWatch ? 'Active — advertisers are earning points' : 'Inactive — points are paused'}
+                {isActiveWatch ? 'Active — members are earning points' : 'Inactive — points are paused'}
               </span>
               <Form.Item name="is_active" valuePropName="checked" noStyle>
                 <Switch checkedChildren="ON" unCheckedChildren="OFF" />

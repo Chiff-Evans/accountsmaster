@@ -9,13 +9,13 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 
 export default function Dashboard() {
-  const { advertiser } = useAuth();
+  const { member } = useAuth();
   const navigate    = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
   const [loyaltyActive, setLoyaltyActive] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const displayName = advertiser?.advertiser_name || `${advertiser?.firstname ?? ''} ${advertiser?.lastname ?? ''}`.trim();
+  const displayName = member?.member_name || `${member?.firstname ?? ''} ${member?.lastname ?? ''}`.trim();
 
   useEffect(() => {
     Promise.all([api.get('/campaigns'), api.get('/loyalty-status')])
@@ -83,13 +83,13 @@ export default function Dashboard() {
       </Row>
 
       {/* Loyalty points card */}
-      {loyaltyActive && advertiser?.loyalty_points > 0 && (
+      {loyaltyActive && member?.loyalty_points > 0 && (
         <div style={styles.loyaltyCard}>
           <div style={styles.loyaltyLeft}>
             <TrophyOutlined style={{ fontSize: 28, color: '#faad14' }} />
             <div>
               <div style={styles.loyaltyLabel}>Your Loyalty Points</div>
-              <div style={styles.loyaltyPoints}>{(advertiser.loyalty_points || 0).toLocaleString()} pts</div>
+              <div style={styles.loyaltyPoints}>{(member.loyalty_points || 0).toLocaleString()} pts</div>
             </div>
           </div>
           <div style={styles.loyaltyBadge}>★ Active</div>

@@ -7,7 +7,7 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 }
 
-// `api` is the axios instance to use — advertiser and brand ambassador each
+// `api` is the axios instance to use — member and brand ambassador each
 // have their own, with their own auth token and push-subscription records.
 export function usePushNotifications(api, recipientId) {
   const subscribed = useRef(false);

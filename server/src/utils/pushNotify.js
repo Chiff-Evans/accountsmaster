@@ -9,7 +9,7 @@ webpush.setVapidDetails(
 
 /**
  * Send a push notification to every active subscription for a given
- * (audience, recipientId) — e.g. ('advertiser', 7), ('brand_ambassador', 3),
+ * (audience, recipientId) — e.g. ('member', 7), ('brand_ambassador', 3),
  * ('mis', 1). opts: { title, body, url, tag }
  */
 async function pushTo(audience, recipientId, { title, body, url = '/', tag = 'sm-update' }) {

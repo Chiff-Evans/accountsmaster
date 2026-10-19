@@ -13,7 +13,7 @@ const NAV = [
 export default function AppLayout({ children }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { advertiser } = useAuth();
+  const { member } = useAuth();
   const [businessName, setBusinessName] = useState('Accounts Master');
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function AppLayout({ children }) {
       .catch(() => {});
   }, []);
 
-  const displayName = advertiser?.advertiser_name || `${advertiser?.firstname ?? ''} ${advertiser?.lastname ?? ''}`.trim();
+  const displayName = member?.member_name || `${member?.firstname ?? ''} ${member?.lastname ?? ''}`.trim();
   const initials = (displayName || '').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const isProfileActive = pathname === '/profile';
 
@@ -44,7 +44,7 @@ export default function AppLayout({ children }) {
               {businessName}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, letterSpacing: 0.3 }}>
-              Advertiser Portal
+              Member Portal
             </div>
           </div>
 
@@ -63,7 +63,7 @@ export default function AppLayout({ children }) {
                 {displayName}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10 }}>
-                {advertiser?.advertiser_ref_no}
+                {member?.member_ref_no}
               </div>
             </div>
             <div style={{

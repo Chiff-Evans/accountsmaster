@@ -64,12 +64,12 @@ router.get('/', async (req, res, next) => {
     }
 
     const [rows] = await pool.query(
-      `SELECT o.id, o.order_ref_no, o.shop_id, o.advertiser_id, o.ordered_by, o.notes,
+      `SELECT o.id, o.order_ref_no, o.shop_id, o.member_id, o.ordered_by, o.notes,
               o.total_amount, o.workflow_id, o.workflow_stage_id, o.created_at,
               o.assigned_driver_id,
               sh.shop_name,
-              CONCAT(dc.firstname,' ',dc.lastname) AS advertiser_name,
-              dc.phone AS advertiser_phone,
+              CONCAT(dc.firstname,' ',dc.lastname) AS member_name,
+              dc.phone AS member_phone,
               COALESCE(
                 CONCAT(u.firstname,' ',u.lastname),
                 CONCAT(c.firstname,' ',c.lastname),
@@ -80,10 +80,10 @@ router.get('/', async (req, res, next) => {
               COUNT(oi.id) AS item_count
        FROM orders o
        LEFT JOIN shops sh             ON o.shop_id             = sh.id
-       LEFT JOIN advertisers dc       ON o.advertiser_id       = dc.id
+       LEFT JOIN members dc       ON o.member_id       = dc.id
        LEFT JOIN users u              ON o.ordered_by          = u.id
        LEFT JOIN users d              ON o.assigned_driver_id  = d.id
-       LEFT JOIN advertisers c        ON sh.owner_id           = c.id AND o.ordered_by IS NULL
+       LEFT JOIN members c        ON sh.owner_id           = c.id AND o.ordered_by IS NULL
        LEFT JOIN workflow_stages ws   ON o.workflow_stage_id   = ws.id
        LEFT JOIN order_items oi       ON o.id                  = oi.order_id
        LEFT JOIN trips i              ON oi.item_id            = i.id
@@ -94,10 +94,10 @@ router.get('/', async (req, res, next) => {
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(DISTINCT o.id) AS total FROM orders o
        LEFT JOIN shops sh           ON o.shop_id             = sh.id
-       LEFT JOIN advertisers dc     ON o.advertiser_id       = dc.id
+       LEFT JOIN members dc     ON o.member_id       = dc.id
        LEFT JOIN users u            ON o.ordered_by          = u.id
        LEFT JOIN users d            ON o.assigned_driver_id  = d.id
-       LEFT JOIN advertisers c      ON sh.owner_id           = c.id AND o.ordered_by IS NULL
+       LEFT JOIN members c      ON sh.owner_id           = c.id AND o.ordered_by IS NULL
        LEFT JOIN workflow_stages ws ON o.workflow_stage_id   = ws.id
        LEFT JOIN order_items oi     ON o.id                  = oi.order_id
        LEFT JOIN trips i            ON oi.item_id            = i.id
@@ -113,8 +113,8 @@ router.get('/:id', async (req, res, next) => {
   try {
     const [rows] = await pool.query(
       `SELECT o.*, sh.shop_name,
-              CONCAT(dc.firstname,' ',dc.lastname) AS advertiser_name,
-              dc.phone AS advertiser_phone, dc.email AS advertiser_email,
+              CONCAT(dc.firstname,' ',dc.lastname) AS member_name,
+              dc.phone AS member_phone, dc.email AS member_email,
               COALESCE(
                 CONCAT(u.firstname,' ',u.lastname),
                 CONCAT(c.firstname,' ',c.lastname),
@@ -123,9 +123,9 @@ router.get('/:id', async (req, res, next) => {
               ws.stage_name, ws.stage_color, ws.responsible_group
        FROM orders o
        LEFT JOIN shops sh           ON o.shop_id           = sh.id
-       LEFT JOIN advertisers dc     ON o.advertiser_id     = dc.id
+       LEFT JOIN members dc     ON o.member_id     = dc.id
        LEFT JOIN users u            ON o.ordered_by        = u.id
-       LEFT JOIN advertisers c      ON sh.owner_id         = c.id AND o.ordered_by IS NULL
+       LEFT JOIN members c      ON sh.owner_id         = c.id AND o.ordered_by IS NULL
        LEFT JOIN workflow_stages ws ON o.workflow_stage_id = ws.id
        WHERE o.id=?`,
       [req.params.id]
@@ -167,18 +167,18 @@ router.get('/:id/transitions', async (req, res, next) => {
 router.post('/', canCreate, async (req, res, next) => {
   try {
     const { shop_id, notes, items } = req.body;
-    // An order is either for a shop or for an individual advertiser — never both.
-    const advertiser_id = shop_id ? null : (req.body.advertiser_id || null);
-    if (!shop_id && !advertiser_id) {
-      return res.status(400).json({ message: 'Select a shop or an individual advertiser' });
+    // An order is either for a shop or for an individual member — never both.
+    const member_id = shop_id ? null : (req.body.member_id || null);
+    if (!shop_id && !member_id) {
+      return res.status(400).json({ message: 'Select a shop or an individual member' });
     }
     const order_ref_no = await generateRefNo('order_placement');
 
     const initStage = await getDefaultInitialStage();
 
     const [result] = await pool.query(
-      'INSERT INTO orders (order_ref_no, shop_id, advertiser_id, ordered_by, notes, workflow_id, workflow_stage_id) VALUES (?,?,?,?,?,?,?)',
-      [order_ref_no, shop_id || null, advertiser_id, req.user.id, notes,
+      'INSERT INTO orders (order_ref_no, shop_id, member_id, ordered_by, notes, workflow_id, workflow_stage_id) VALUES (?,?,?,?,?,?,?)',
+      [order_ref_no, shop_id || null, member_id, req.user.id, notes,
        initStage?.workflow_id || null, initStage?.stage_id || null]
     );
     const orderId = result.insertId;
@@ -215,13 +215,13 @@ router.post('/', canCreate, async (req, res, next) => {
 router.put('/:id', canEdit, async (req, res, next) => {
   try {
     const { shop_id, notes, items } = req.body;
-    // An order is either for a shop or for an individual advertiser — never both.
-    const advertiser_id = shop_id ? null : (req.body.advertiser_id || null);
-    if (!shop_id && !advertiser_id) {
-      return res.status(400).json({ message: 'Select a shop or an individual advertiser' });
+    // An order is either for a shop or for an individual member — never both.
+    const member_id = shop_id ? null : (req.body.member_id || null);
+    if (!shop_id && !member_id) {
+      return res.status(400).json({ message: 'Select a shop or an individual member' });
     }
-    await pool.query('UPDATE orders SET shop_id=?, advertiser_id=?, notes=? WHERE id=?',
-      [shop_id || null, advertiser_id, notes, req.params.id]);
+    await pool.query('UPDATE orders SET shop_id=?, member_id=?, notes=? WHERE id=?',
+      [shop_id || null, member_id, notes, req.params.id]);
     if (items !== undefined) {
       await pool.query('DELETE FROM order_items WHERE order_id=?', [req.params.id]);
       if (items.length) {
@@ -305,23 +305,23 @@ router.post('/:id/transition', canEdit, async (req, res, next) => {
       const [[lc]] = await pool.query('SELECT * FROM loyalty_config WHERE id=1 LIMIT 1');
       if (lc?.is_active && lc.qualifying_stage_id == transition.to_stage_id) {
         const [[ord]] = await pool.query(
-          `SELECT o.total_amount, COALESCE(o.advertiser_id, sh.owner_id) AS advertiser_id
+          `SELECT o.total_amount, COALESCE(o.member_id, sh.owner_id) AS member_id
            FROM orders o LEFT JOIN shops sh ON sh.id = o.shop_id
            WHERE o.id = ?`,
           [req.params.id]
         );
-        if (ord?.advertiser_id && Number(ord.total_amount) >= Number(lc.min_sale_amount)) {
+        if (ord?.member_id && Number(ord.total_amount) >= Number(lc.min_sale_amount)) {
           const pts = Math.floor(Number(ord.total_amount) / Number(lc.amount_per_point));
           if (pts > 0) {
             const [ins] = await pool.query(
-              `INSERT IGNORE INTO loyalty_points (advertiser_id, order_id, points, order_total)
+              `INSERT IGNORE INTO loyalty_points (member_id, order_id, points, order_total)
                VALUES (?, ?, ?, ?)`,
-              [ord.advertiser_id, req.params.id, pts, ord.total_amount]
+              [ord.member_id, req.params.id, pts, ord.total_amount]
             );
             if (ins.affectedRows) {
               await pool.query(
-                'UPDATE advertisers SET loyalty_points = loyalty_points + ? WHERE id = ?',
-                [pts, ord.advertiser_id]
+                'UPDATE members SET loyalty_points = loyalty_points + ? WHERE id = ?',
+                [pts, ord.member_id]
               );
             }
           }
@@ -331,16 +331,16 @@ router.post('/:id/transition', canEdit, async (req, res, next) => {
       console.error('Loyalty points error:', loyaltyErr.message);
     }
 
-    /* ── Push notification to the order's advertiser (direct, or via shop ownership) ── */
+    /* ── Push notification to the order's member (direct, or via shop ownership) ── */
     try {
-      const [[orderAdvertiser]] = await pool.query(
-        `SELECT COALESCE(o.advertiser_id, sh.owner_id) AS advertiser_id
+      const [[orderMember]] = await pool.query(
+        `SELECT COALESCE(o.member_id, sh.owner_id) AS member_id
          FROM orders o LEFT JOIN shops sh ON sh.id = o.shop_id
          WHERE o.id = ?`,
         [req.params.id]
       );
-      if (orderAdvertiser?.advertiser_id) {
-        await pushTo('advertiser', orderAdvertiser.advertiser_id, {
+      if (orderMember?.member_id) {
+        await pushTo('member', orderMember.member_id, {
           title: 'Order Update',
           body:  `${order.order_ref_no} has moved to "${transition.to_stage_name}"`,
           url:   `/orders/${encodeId(req.params.id)}`,

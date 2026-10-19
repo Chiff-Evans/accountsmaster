@@ -7,7 +7,7 @@ const SECTIONS = [
   { key: 'stat_campaigns',        label: 'Campaigns',                    group: 'Stat Cards' },
   { key: 'stat_revenue',          label: 'Revenue',                      group: 'Stat Cards' },
   { key: 'stat_expenditure',      label: 'Expenditure',                  group: 'Stat Cards' },
-  { key: 'stat_advertisers',      label: 'Active Advertisers',           group: 'Stat Cards' },
+  { key: 'stat_members',      label: 'Active Members',           group: 'Stat Cards' },
   { key: 'stat_brand_ambassadors', label: 'Active Brand Ambassadors',    group: 'Stat Cards' },
   { key: 'chart_trend',           label: 'Revenue vs Expenditure Trend', group: 'Charts' },
   { key: 'chart_pipeline',        label: 'Campaigns Pipeline',           group: 'Charts' },

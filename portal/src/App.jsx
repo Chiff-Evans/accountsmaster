@@ -17,8 +17,8 @@ import BrandAmbassadorCampaigns from './pages/brand-ambassador/BrandAmbassadorCa
 import BrandAmbassadorCampaignDetail from './pages/brand-ambassador/BrandAmbassadorCampaignDetail';
 
 function ProtectedRoute({ children }) {
-  const { advertiser } = useAuth();
-  return advertiser ? children : <Navigate to="/login" replace />;
+  const { member } = useAuth();
+  return member ? children : <Navigate to="/login" replace />;
 }
 
 function ProtectedBrandAmbassadorRoute({ children }) {

@@ -1,5 +1,5 @@
 const defaults = {
-  apiUrl:  '/api/advertiser-portal',
+  apiUrl:  '/api/member-portal',
   appName: 'Accounts Master',
 };
 

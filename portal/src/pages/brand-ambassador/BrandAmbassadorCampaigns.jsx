@@ -70,7 +70,7 @@ export default function BrandAmbassadorCampaigns() {
               extra={<Tag color={c.stage_color || STAGE_COLOR[c.stage_name] || 'default'}>{c.stage_name || '—'}</Tag>}
               title={<span style={{ fontWeight: 700 }}>{c.campaign_title}</span>}
             >
-              {c.advertiser_name && <div style={styles.row}><span>Advertiser</span><span>{c.advertiser_name}</span></div>}
+              {c.member_name && <div style={styles.row}><span>Member</span><span>{c.member_name}</span></div>}
               {c.file_no && <div style={styles.row}><span>Ref No</span><span>{c.file_no}</span></div>}
               {actionableDays.length > 0 && (
                 <div style={styles.row}>

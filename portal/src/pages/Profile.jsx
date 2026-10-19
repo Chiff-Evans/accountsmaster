@@ -10,7 +10,7 @@ import { hashPassword } from '../utils/crypto';
 const STATUS_COLOR = { active: 'green', locked: 'orange', suspended: 'red', revoked: 'volcano' };
 
 export default function Profile() {
-  const { advertiser, logout, refreshMe, pushStatus, subscribe, unsubscribe } = useAuth();
+  const { member, logout, refreshMe, pushStatus, subscribe, unsubscribe } = useAuth();
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [profileForm] = Form.useForm();
@@ -24,7 +24,7 @@ export default function Profile() {
   const [counties, setCounties]       = useState([]); // parameter_id 16
   const [subcounties, setSubcounties] = useState([]); // parameter_id 17
 
-  const displayName = advertiser?.advertiser_name || `${advertiser?.firstname ?? ''} ${advertiser?.lastname ?? ''}`.trim();
+  const displayName = member?.member_name || `${member?.firstname ?? ''} ${member?.lastname ?? ''}`.trim();
 
   useEffect(() => {
     api.get('/parameters/values', { params: { parameter_id: 14 } }).then(r => setIndustries(r.data));
@@ -37,12 +37,12 @@ export default function Profile() {
   const subcountiesForCounty = subcounties.filter(s => s.parent_value_id === selectedCountyId);
 
   useEffect(() => {
-    if (advertiser) profileForm.setFieldsValue({
-      advertiser_name: advertiser.advertiser_name, industry_id: advertiser.industry_id,
-      country_id:  advertiser.country_id,  county_id:   advertiser.county_id, subcounty_id: advertiser.subcounty_id,
-      gender:      advertiser.gender,      phone:       advertiser.phone,    email:        advertiser.email,
+    if (member) profileForm.setFieldsValue({
+      member_name: member.member_name, industry_id: member.industry_id,
+      country_id:  member.country_id,  county_id:   member.county_id, subcounty_id: member.subcounty_id,
+      gender:      member.gender,      phone:       member.phone,    email:        member.email,
     });
-  }, [advertiser]);
+  }, [member]);
 
   const saveProfile = async () => {
     const vals = await profileForm.validateFields();
@@ -96,14 +96,14 @@ export default function Profile() {
               {displayName}
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
-              @{advertiser?.username}
+              @{member?.username}
             </div>
           </div>
         </div>
         {/* Row 2: badges */}
         <div style={{ display: 'flex', gap: 6 }}>
-          <Tag color="white" style={{ color: '#1677ff', fontWeight: 600, margin: 0 }}>{advertiser?.advertiser_ref_no}</Tag>
-          <Tag color={STATUS_COLOR[advertiser?.status] || 'green'} style={{ margin: 0 }}>{advertiser?.status}</Tag>
+          <Tag color="white" style={{ color: '#1677ff', fontWeight: 600, margin: 0 }}>{member?.member_ref_no}</Tag>
+          <Tag color={STATUS_COLOR[member?.status] || 'green'} style={{ margin: 0 }}>{member?.status}</Tag>
         </div>
       </Card>
 
@@ -111,8 +111,8 @@ export default function Profile() {
       <Card size="small" title={<><UserOutlined /> Personal Details</>} style={styles.card}>
         <Form form={profileForm} layout="vertical" style={{ marginTop: 8 }}>
 
-          <FieldWrapper label="Advertiser Name" required>
-            <Form.Item name="advertiser_name" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 0 }}>
+          <FieldWrapper label="Member Name" required>
+            <Form.Item name="member_name" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 0 }}>
               <Input variant="borderless" style={{ padding: '2px 0' }} />
             </Form.Item>
           </FieldWrapper>

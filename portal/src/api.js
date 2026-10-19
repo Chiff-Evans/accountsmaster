@@ -7,7 +7,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(cfg => {
-  const token = localStorage.getItem('advertiser_token');
+  const token = localStorage.getItem('member_token');
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;
 });
@@ -16,9 +16,9 @@ api.interceptors.response.use(
   r => r,
   err => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('advertiser_token');
-      localStorage.removeItem('advertiser_data');
-      // Only force-navigate if we're actually inside the advertiser portal.
+      localStorage.removeItem('member_token');
+      localStorage.removeItem('member_data');
+      // Only force-navigate if we're actually inside the member portal.
       // This also runs from a background session check on mount (App-wide
       // provider), which fires on every route — a stale/expired token must not
       // hijack an unrelated public page like /register or the brand-ambassador side.

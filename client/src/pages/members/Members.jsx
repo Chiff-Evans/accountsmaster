@@ -1,15 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Modal, Form, Input, Select, Tag, Button, Dropdown,
+  Modal, Form, Input, InputNumber, Select, DatePicker, Radio, Tag, Button, Dropdown,
   message, Typography, Popover, Checkbox, Spin, Space,
 } from 'antd';
+import dayjs from 'dayjs';
 import {
   LockOutlined, UnlockOutlined, StopOutlined,
-  MoreOutlined, KeyOutlined, StarFilled, TableOutlined, SwapOutlined,
+  MoreOutlined, KeyOutlined, TableOutlined, SwapOutlined,
 } from '@ant-design/icons';
 import CrudTable from '../../components/common/CrudTable';
 import LabelField from '../../components/common/LabelField';
-import ImageUploadField from '../../components/common/ImageUploadField';
 import api from '../../api';
 import { hashPassword } from '../../utils/crypto';
 
@@ -26,7 +26,7 @@ function StageTag({ name, color }) {
   return <Tag color={color || undefined}>{name}</Tag>;
 }
 
-export default function Advertisers() {
+export default function Members() {
   const [data, setData]         = useState([]);
   const [total, setTotal]       = useState(0);
   const [page, setPage]         = useState(1);
@@ -36,21 +36,13 @@ export default function Advertisers() {
   const [open, setOpen]         = useState(false);
   const [editing, setEditing]   = useState(null);
   const [pwdModal, setPwdModal] = useState(false);
-  const [hiddenCols, setHiddenCols] = useState(new Set(['email']));
+  const [hiddenCols, setHiddenCols] = useState(new Set(['email', 'other']));
   const [stages, setStages] = useState([]);
   const [stageFilter, setStageFilter] = useState(null);
   const [form]    = Form.useForm();
   const [pwdForm] = Form.useForm();
-  const usernameTouched = useRef(false);
 
-  const [advertiserTypes, setAdvertiserTypes] = useState([]); // parameter_id 12
-  const [industries, setIndustries]   = useState([]); // parameter_id 14
-  const [countries, setCountries]     = useState([]); // parameter_id 15
-  const [counties, setCounties]       = useState([]); // parameter_id 16
-  const [subcounties, setSubcounties] = useState([]); // parameter_id 17
-
-  const [preview, setPreview]           = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [positions, setPositions] = useState([]); // parameter text_id 'parties-positions'
   const [saving, setSaving] = useState(false);
 
   // Process (workflow transition) modal — Submitted -> Under Review -> Approved/Rejected
@@ -64,43 +56,37 @@ export default function Advertisers() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get('/advertisers', { params: { page, limit, search, stage_id: stageFilter || undefined } });
+      const r = await api.get('/members', { params: { page, limit, search, stage_id: stageFilter || undefined } });
       setData(r.data.data); setTotal(r.data.total);
     } finally { setLoading(false); }
   }, [page, limit, search, stageFilter]);
 
   useEffect(() => {
     load();
-    api.get('/parameters/values', { params: { parameter_id: 12 } }).then(r => setAdvertiserTypes(r.data));
-    api.get('/parameters/values', { params: { parameter_id: 14 } }).then(r => setIndustries(r.data));
-    api.get('/parameters/values', { params: { parameter_id: 15 } }).then(r => setCountries(r.data));
-    api.get('/parameters/values', { params: { parameter_id: 16 } }).then(r => setCounties(r.data));
-    api.get('/parameters/values', { params: { parameter_id: 17 } }).then(r => setSubcounties(r.data));
+    api.get('/parameters/values', { params: { text_id: 'parties-positions' } }).then(r => setPositions(r.data));
   }, [load]);
 
-  useEffect(() => { api.get('/advertisers/stages').then(r => setStages(r.data)); }, []);
+  useEffect(() => { api.get('/members/stages').then(r => setStages(r.data)); }, []);
 
   const onSave = async () => {
     const vals = await form.validateFields();
     setSaving(true);
     try {
-      const formData = new FormData();
-      formData.append('advertiser_type_id', vals.advertiser_type_id ?? '');
-      formData.append('advertiser_name', vals.advertiser_name);
-      formData.append('industry_id', vals.industry_id ?? '');
-      formData.append('country_id', vals.country_id ?? '');
-      formData.append('county_id', vals.county_id ?? '');
-      formData.append('subcounty_id', vals.subcounty_id ?? '');
-      formData.append('gender', vals.gender || '');
-      formData.append('phone', vals.phone || '');
-      formData.append('email', vals.email || '');
-      formData.append('username', vals.username || '');
-      if (vals.password) formData.append('password', await hashPassword(vals.password));
-      if (editing) formData.append('status', vals.status || 'active');
-      if (selectedFile) formData.append('logo', selectedFile);
+      const payload = {
+        member_name:   vals.member_name,
+        position_id:   vals.position_id ?? null,
+        id_number:     vals.id_number || null,
+        phone:         vals.phone || null,
+        email:         vals.email || null,
+        gender:        vals.gender || null,
+        reg_date:      vals.reg_date ? vals.reg_date.format('YYYY-MM-DD') : null,
+        reg_fee:       vals.reg_fee ?? null,
+        other_details: vals.other_details || null,
+      };
+      if (editing) payload.status = vals.status || 'active';
 
-      if (editing) await api.put(`/advertisers/${editing.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      else await api.post('/advertisers', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (editing) await api.put(`/members/${editing.id}`, payload);
+      else await api.post('/members', payload);
 
       message.success('Saved'); setOpen(false); load();
     } catch (err) { message.error(err.response?.data?.message || 'Failed'); }
@@ -109,8 +95,8 @@ export default function Advertisers() {
 
   const doAction = async (id, action) => {
     try {
-      await api.post(`/advertisers/${id}/action`, { action });
-      message.success(`Advertiser ${action}`);
+      await api.post(`/members/${id}/action`, { action });
+      message.success(`Member ${action}`);
       load();
     } catch { message.error('Action failed'); }
   };
@@ -118,7 +104,7 @@ export default function Advertisers() {
   const resetPwd = async () => {
     const vals = await pwdForm.validateFields();
     try {
-      await api.post(`/advertisers/${editing.id}/reset-password`, { new_password: await hashPassword(vals.new_password) });
+      await api.post(`/members/${editing.id}/reset-password`, { new_password: await hashPassword(vals.new_password) });
       message.success('Password reset'); setPwdModal(false);
     } catch { message.error('Failed'); }
   };
@@ -130,7 +116,7 @@ export default function Advertisers() {
     setTransitionList([]);
     setTransLoading(true);
     try {
-      const { data: rows } = await api.get(`/advertisers/${record.id}/transitions`);
+      const { data: rows } = await api.get(`/members/${record.id}/transitions`);
       setTransitionList(rows);
     } catch { message.error('Failed to load transitions'); }
     finally { setTransLoading(false); }
@@ -140,8 +126,8 @@ export default function Advertisers() {
     if (!transAction) return message.warning('Select an action');
     setMoving(true);
     try {
-      await api.post(`/advertisers/${processing.id}/transition`, { transition_id: transAction, notes: transNotes || null });
-      message.success('Advertiser stage updated');
+      await api.post(`/members/${processing.id}/transition`, { transition_id: transAction, notes: transNotes || null });
+      message.success('Member stage updated');
       setProcessing(null);
       load();
     } catch (err) {
@@ -166,22 +152,21 @@ export default function Advertisers() {
   });
 
   const allColumns = [
-    { title: 'Ref No',   dataIndex: 'advertiser_ref_no', key: 'ref', width: 110,
+    { title: 'Ref No',   dataIndex: 'member_ref_no', key: 'ref', width: 110,
       render: v => <Tag color="blue">{v}</Tag> },
-    { title: 'Name',     key: 'name', render: (_, r) => r.advertiser_name || `${r.firstname} ${r.lastname}` },
-    { title: 'Type',     dataIndex: 'advertiser_type_name', key: 'type', mobileExpanded: true,
+    { title: 'Name',     dataIndex: 'member_name', key: 'name' },
+    { title: 'Position', dataIndex: 'position_name', key: 'position', mobileExpanded: true,
       render: v => v ? <Tag>{v}</Tag> : null },
-    { title: 'Industry', dataIndex: 'industry_name', key: 'industry', mobileExpanded: true,
-      render: v => v ? <Tag>{v}</Tag> : null },
+    { title: 'ID Number', dataIndex: 'id_number', key: 'idno', mobileExpanded: true },
     { title: 'Phone',    dataIndex: 'phone',  key: 'phone', mobileAlign: 'right' },
-    { title: 'Username', dataIndex: 'username', key: 'user', mobileExpanded: true,
-      render: v => v ? <Tag>{v}</Tag> : <Typography.Text type="secondary">—</Typography.Text> },
     { title: 'Email',    dataIndex: 'email',   key: 'email',   mobileExpanded: true,
       render: v => v ? <Tag>{v}</Tag> : null },
-    { title: 'Points',   dataIndex: 'loyalty_points', key: 'pts', mobileExpanded: true,
-      render: v => v > 0
-        ? <Tag color="gold" icon={<StarFilled />}>{Number(v).toLocaleString()} pts</Tag>
-        : <Typography.Text type="secondary">—</Typography.Text> },
+    { title: 'Gender',   dataIndex: 'gender', key: 'gender', mobileExpanded: true },
+    { title: 'Reg Date', dataIndex: 'reg_date', key: 'regdate', mobileExpanded: true,
+      render: v => v ? dayjs(v).format('D MMM YYYY') : '—' },
+    { title: 'Reg Fee',  dataIndex: 'reg_fee', key: 'regfee', mobileExpanded: true, align: 'right',
+      render: v => v != null ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—' },
+    { title: 'Other Details', dataIndex: 'other_details', key: 'other', mobileExpanded: true, ellipsis: true },
     { title: 'Stage',    dataIndex: 'stage_name', key: 'stage', mobileExpanded: true,
       render: (v, r) => <StageTag name={v} color={r.stage_color} /> },
     { title: 'Status',   dataIndex: 'status',  key: 'status',  mobileExpanded: true,
@@ -241,39 +226,30 @@ export default function Advertisers() {
   );
 
   const selectedTransition = transitionList.find(t => t.transition_id === transAction);
-  const selectedCountyId = Form.useWatch('county_id', form);
-  const subcountiesForCounty = subcounties.filter(s => s.parent_value_id === selectedCountyId);
 
   return (
     <>
       <CrudTable
-        title="Advertiser Management"
+        title="Members Management"
         columns={columns}
         dataSource={data}
         loading={loading}
         onAdd={() => {
           setEditing(null); form.resetFields();
-          setSelectedFile(null); setPreview(null);
-          usernameTouched.current = false;
-          // Prefill whichever value staff have explicitly marked as default per parameter.
+          // Prefill whichever position staff have explicitly marked as default.
           form.setFieldsValue({
-            advertiser_type_id: advertiserTypes.find(c => c.is_default)?.id,
-            industry_id:    industries.find(i => i.is_default)?.id,
-            country_id:     countries.find(c => c.is_default)?.id,
-            county_id:       counties.find(c => c.is_default)?.id,
-            subcounty_id: subcounties.find(c => c.is_default)?.id,
+            position_id: positions.find(p => p.is_default)?.id,
+            reg_date:    dayjs(),
           });
           setOpen(true);
         }}
         onEdit={r => {
           setEditing(r);
-          setSelectedFile(null); setPreview(r.logo_url || null);
-          form.setFieldsValue({ ...r, password: undefined });
-          usernameTouched.current = true; // existing record — don't overwrite username
+          form.setFieldsValue({ ...r, reg_date: r.reg_date ? dayjs(r.reg_date) : null });
           setOpen(true);
         }}
         onDelete={async r => {
-          try { await api.delete(`/advertisers/${r.id}`); message.success('Deleted'); load(); }
+          try { await api.delete(`/members/${r.id}`); message.success('Deleted'); load(); }
           catch { message.error('Cannot delete'); }
         }}
         onSearch={v => { setSearch(v); setPage(1); }}
@@ -281,10 +257,10 @@ export default function Advertisers() {
         pagination={{
           current: page, total, pageSize: limit,
           onChange: (p, ps) => { setPage(p); setLimit(ps); },
-          showTotal: t => `${t} advertisers`,
+          showTotal: t => `${t} members`,
         }}
         extra={toolbarExtra}
-        searchPlaceholder="Search by name, phone, email, username..."
+        searchPlaceholder="Search by name, ID number, phone, email, ref no..."
         extraActions={record => (
           <Button type="link" size="small" icon={<SwapOutlined />} onClick={() => openProcess(record)} title="Process" />
         )}
@@ -292,65 +268,32 @@ export default function Advertisers() {
 
       {/* Add / Edit Modal */}
       <Modal
-        title={editing ? 'Edit Advertiser' : 'Add Advertiser'}
+        title={editing ? 'Edit Member' : 'Member Registration'}
         open={open} onOk={onSave} onCancel={() => setOpen(false)} confirmLoading={saving} centered width={640}
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto', paddingTop: 8, paddingRight: 8 } }}
       >
         <Form form={form} layout="vertical">
-          <LabelField label="Advertiser Type">
-            <Form.Item name="advertiser_type_id" style={{ marginBottom: 20 }}>
-              <Select allowClear showSearch optionFilterProp="children">
-                {advertiserTypes.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
+          <LabelField label="Name" required>
+            <Form.Item name="member_name" rules={[{ required: true, message: 'Name is required' }]} style={{ marginBottom: 20 }}>
+              <Input />
+            </Form.Item>
+          </LabelField>
+
+          <LabelField label="Position">
+            <Form.Item name="position_id" style={{ marginBottom: 20 }}>
+              <Select allowClear showSearch optionFilterProp="children" placeholder="Select Position">
+                {positions.map(p => <Select.Option key={p.id} value={p.id}>{p.paramater_value}</Select.Option>)}
               </Select>
             </Form.Item>
           </LabelField>
 
-          <LabelField label="Advertiser Name" required>
-            <Form.Item name="advertiser_name" rules={[{ required: true }]} style={{ marginBottom: 20 }}>
-              <Input placeholder="Company or individual name" />
+          <LabelField label="ID Number">
+            <Form.Item name="id_number" style={{ marginBottom: 20 }}>
+              <Input />
             </Form.Item>
           </LabelField>
 
-          <LabelField label="Industry">
-            <Form.Item name="industry_id" style={{ marginBottom: 20 }}>
-              <Select allowClear showSearch optionFilterProp="children">
-                {industries.map(i => <Select.Option key={i.id} value={i.id}>{i.paramater_value}</Select.Option>)}
-              </Select>
-            </Form.Item>
-          </LabelField>
-
-          <LabelField label="Country">
-            <Form.Item name="country_id" style={{ marginBottom: 20 }}>
-              <Select allowClear showSearch optionFilterProp="children">
-                {countries.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
-              </Select>
-            </Form.Item>
-          </LabelField>
-
-          <LabelField label="County">
-            <Form.Item name="county_id" style={{ marginBottom: 20 }}>
-              <Select
-                allowClear showSearch optionFilterProp="children"
-                onChange={() => form.setFieldValue('subcounty_id', undefined)}
-              >
-                {counties.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
-              </Select>
-            </Form.Item>
-          </LabelField>
-
-          <LabelField label="Sub-County">
-            <Form.Item name="subcounty_id" style={{ marginBottom: 20 }}>
-              <Select
-                allowClear showSearch optionFilterProp="children"
-                disabled={!selectedCountyId}
-                placeholder={selectedCountyId ? 'Select sub-county' : 'Select a county first'}
-              >
-                {subcountiesForCounty.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
-              </Select>
-            </Form.Item>
-          </LabelField>
-
-          <LabelField label="Phone">
+          <LabelField label="Phone No.">
             <Form.Item name="phone" style={{ marginBottom: 20 }}>
               <Input />
             </Form.Item>
@@ -358,37 +301,36 @@ export default function Advertisers() {
 
           <LabelField label="Email">
             <Form.Item name="email" rules={[{ type: 'email' }]} style={{ marginBottom: 20 }}>
-              <Input
-                onChange={e => {
-                  if (usernameTouched.current) return;
-                  const prefix = e.target.value.split('@')[0];
-                  form.setFieldValue('username', prefix);
-                }}
-              />
+              <Input />
             </Form.Item>
           </LabelField>
 
-          <LabelField label="Username (for portal access)">
-            <Form.Item name="username" style={{ marginBottom: 20 }}>
-              <Input
-                placeholder="Optional — leave blank if no login needed"
-                autoComplete="off"
-                onChange={() => { usernameTouched.current = true; }}
-              />
+          <LabelField label="Gender">
+            <Form.Item name="gender" style={{ marginBottom: 20 }}>
+              <Radio.Group>
+                <Radio value="Male">Male</Radio>
+                <Radio value="Female">Female</Radio>
+              </Radio.Group>
             </Form.Item>
           </LabelField>
 
-          {!editing && (
-            <LabelField label="Password">
-              <Form.Item
-                name="password"
-                style={{ marginBottom: 20 }}
-                extra="Leave blank to use default: Password@12345"
-              >
-                <Input.Password autoComplete="new-password" placeholder="Default:" />
-              </Form.Item>
-            </LabelField>
-          )}
+          <LabelField label="Reg Date">
+            <Form.Item name="reg_date" style={{ marginBottom: 20 }}>
+              <DatePicker style={{ width: '100%' }} format="D MMM YYYY" />
+            </Form.Item>
+          </LabelField>
+
+          <LabelField label="Reg Fee">
+            <Form.Item name="reg_fee" style={{ marginBottom: 20 }}>
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+          </LabelField>
+
+          <LabelField label="Other Details">
+            <Form.Item name="other_details" style={{ marginBottom: 20 }}>
+              <Input.TextArea rows={4} />
+            </Form.Item>
+          </LabelField>
 
           {editing && (
             <LabelField label="Status">
@@ -404,24 +346,16 @@ export default function Advertisers() {
             </LabelField>
           )}
 
-          <LabelField label="Logo">
-            <ImageUploadField
-              value={preview}
-              onChange={file => { setSelectedFile(file); setPreview(URL.createObjectURL(file)); }}
-              onRemove={selectedFile ? () => { setSelectedFile(null); setPreview(editing?.logo_url || null); } : null}
-              hint="JPG, PNG or WEBP · Max 5MB"
-            />
-          </LabelField>
         </Form>
       </Modal>
 
       {/* Reset Password Modal */}
       <Modal
-        title="Reset Advertiser Password"
+        title="Reset Member Password"
         open={pwdModal} onOk={resetPwd} onCancel={() => setPwdModal(false)} centered
       >
         <Typography.Text>
-          Resetting password for: <strong>{editing?.username || editing?.advertiser_name || `${editing?.firstname} ${editing?.lastname}`}</strong>
+          Resetting password for: <strong>{editing?.username || editing?.member_name || `${editing?.firstname} ${editing?.lastname}`}</strong>
         </Typography.Text>
         <Form form={pwdForm} layout="vertical" style={{ marginTop: 20 }}>
           <LabelField label="New Password" required>
@@ -432,9 +366,9 @@ export default function Advertisers() {
         </Form>
       </Modal>
 
-      {/* Process — move an advertiser through its registration-approval workflow */}
+      {/* Process — move a member through its registration-approval workflow */}
       <Modal
-        title={<div style={{ textAlign: 'center', fontWeight: 600, fontSize: 15 }}>{processing?.advertiser_name}</div>}
+        title={<div style={{ textAlign: 'center', fontWeight: 600, fontSize: 15 }}>{processing?.member_name}</div>}
         open={!!processing}
         onCancel={() => setProcessing(null)}
         onOk={doTransition}

@@ -6,12 +6,12 @@ const { maybeAwardLoyaltyPoints } = require('../helpers/loyalty');
 
 /* A payment that pushes a campaign's total paid over the loyalty threshold
    should trigger the award too, not just a workflow stage transition. */
-async function awardLoyaltyForPayment({ advertiser_id, campaign_id }) {
+async function awardLoyaltyForPayment({ member_id, campaign_id }) {
   try {
     if (!campaign_id) return;
     const [[campaign]] = await pool.query(
-      'SELECT id, advertiser_id, workflow_stage_id FROM campaigns WHERE id=? AND advertiser_id=?',
-      [campaign_id, advertiser_id]
+      'SELECT id, member_id, workflow_stage_id FROM campaigns WHERE id=? AND member_id=?',
+      [campaign_id, member_id]
     );
     if (campaign) await maybeAwardLoyaltyPoints(campaign);
   } catch (err) {
@@ -27,12 +27,12 @@ const canDelete = requirePermission('/stock/payments', 'can_delete');
 
 const LIST_SELECT = `
   SELECT p.*, cm.file_no AS campaign_file_no, cm.campaign_title,
-         COALESCE(c.advertiser_name, CONCAT(c.firstname,' ',c.lastname)) AS advertiser_name,
+         COALESCE(c.member_name, CONCAT(c.firstname,' ',c.lastname)) AS member_name,
          cur.paramater_value AS currency_name,
          pm.paramater_value  AS payment_mode_name
   FROM payments p
   LEFT JOIN campaigns cm          ON p.campaign_id = cm.id
-  LEFT JOIN advertisers c         ON p.advertiser_id = c.id
+  LEFT JOIN members c         ON p.member_id = c.id
   LEFT JOIN parameter_values cur  ON p.currency_id = cur.id
   LEFT JOIN parameter_values pm   ON p.payment_mode_id = pm.id
 `;
@@ -64,7 +64,7 @@ router.get('/next-no', async (req, res, next) => {
 router.get('/campaign-balance/:campaign_id', async (req, res, next) => {
   try {
     const [[campaign]] = await pool.query(
-      'SELECT id, advertiser_id, budget, discount FROM campaigns WHERE id=?', [req.params.campaign_id]
+      'SELECT id, member_id, budget, discount FROM campaigns WHERE id=?', [req.params.campaign_id]
     );
     if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
     const [[{ paid_amount }]] = await pool.query(
@@ -73,7 +73,7 @@ router.get('/campaign-balance/:campaign_id', async (req, res, next) => {
     const budget = Number(campaign.budget || 0);
     const discount = Number(campaign.discount || 0);
     res.json({
-      campaign_id: campaign.id, advertiser_id: campaign.advertiser_id, budget, discount,
+      campaign_id: campaign.id, member_id: campaign.member_id, budget, discount,
       paid_amount: Number(paid_amount), balance: budget - discount - Number(paid_amount),
     });
   } catch (err) { next(err); }
@@ -89,15 +89,15 @@ router.get('/', async (req, res, next) => {
     const campaignParam = req.query.campaign_id ? [req.query.campaign_id] : [];
     const [rows] = await pool.query(
       `${LIST_SELECT}
-       WHERE (p.file_no LIKE ? OR cm.campaign_title LIKE ? OR COALESCE(c.advertiser_name, CONCAT(c.firstname,' ',c.lastname)) LIKE ? OR p.reference LIKE ?) ${campaignFilter}
+       WHERE (p.file_no LIKE ? OR cm.campaign_title LIKE ? OR COALESCE(c.member_name, CONCAT(c.firstname,' ',c.lastname)) LIKE ? OR p.reference LIKE ?) ${campaignFilter}
        ORDER BY p.created_on DESC LIMIT ? OFFSET ?`,
       [search, search, search, search, ...campaignParam, limit, offset]
     );
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) AS total FROM payments p
        LEFT JOIN campaigns cm ON p.campaign_id = cm.id
-       LEFT JOIN advertisers c ON p.advertiser_id = c.id
-       WHERE (p.file_no LIKE ? OR cm.campaign_title LIKE ? OR COALESCE(c.advertiser_name, CONCAT(c.firstname,' ',c.lastname)) LIKE ? OR p.reference LIKE ?) ${campaignFilter}`,
+       LEFT JOIN members c ON p.member_id = c.id
+       WHERE (p.file_no LIKE ? OR cm.campaign_title LIKE ? OR COALESCE(c.member_name, CONCAT(c.firstname,' ',c.lastname)) LIKE ? OR p.reference LIKE ?) ${campaignFilter}`,
       [search, search, search, search, ...campaignParam]
     );
     res.json({ data: rows, total, page, limit });
@@ -114,20 +114,20 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', canCreate, async (req, res, next) => {
   try {
-    const { campaign_id, advertiser_id, currency_id, payment_mode_id, amount, reference, payment_date, comments } = req.body;
+    const { campaign_id, member_id, currency_id, payment_mode_id, amount, reference, payment_date, comments } = req.body;
     if (!campaign_id) return res.status(400).json({ message: 'Campaign is required' });
-    if (!advertiser_id) return res.status(400).json({ message: 'Advertiser is required' });
+    if (!member_id) return res.status(400).json({ message: 'Member is required' });
     if (!amount) return res.status(400).json({ message: 'Amount is required' });
 
     const file_no = await generateRefNo('payment_creation');
     const [result] = await pool.query(
       `INSERT INTO payments
-         (file_no, campaign_id, advertiser_id, currency_id, payment_mode_id, amount, reference, payment_date, received_by, comments, created_by)
+         (file_no, campaign_id, member_id, currency_id, payment_mode_id, amount, reference, payment_date, received_by, comments, created_by)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [file_no, campaign_id, advertiser_id, currency_id || null, payment_mode_id || null, amount,
+      [file_no, campaign_id, member_id, currency_id || null, payment_mode_id || null, amount,
        reference || null, payment_date || null, req.user.id, comments || null, req.user.id]
     );
-    await awardLoyaltyForPayment({ advertiser_id, campaign_id });
+    await awardLoyaltyForPayment({ member_id, campaign_id });
 
     const [rows] = await pool.query(`${LIST_SELECT} WHERE p.id=?`, [result.insertId]);
     res.status(201).json(rows[0]);
@@ -136,20 +136,20 @@ router.post('/', canCreate, async (req, res, next) => {
 
 router.put('/:id', canEdit, async (req, res, next) => {
   try {
-    const { campaign_id, advertiser_id, currency_id, payment_mode_id, amount, reference, payment_date, comments } = req.body;
+    const { campaign_id, member_id, currency_id, payment_mode_id, amount, reference, payment_date, comments } = req.body;
     if (!campaign_id) return res.status(400).json({ message: 'Campaign is required' });
-    if (!advertiser_id) return res.status(400).json({ message: 'Advertiser is required' });
+    if (!member_id) return res.status(400).json({ message: 'Member is required' });
     if (!amount) return res.status(400).json({ message: 'Amount is required' });
 
     await pool.query(
       `UPDATE payments SET
-         campaign_id=?, advertiser_id=?, currency_id=?, payment_mode_id=?, amount=?, reference=?,
+         campaign_id=?, member_id=?, currency_id=?, payment_mode_id=?, amount=?, reference=?,
          payment_date=?, comments=?, updated_by=?
        WHERE id=?`,
-      [campaign_id, advertiser_id, currency_id || null, payment_mode_id || null, amount,
+      [campaign_id, member_id, currency_id || null, payment_mode_id || null, amount,
        reference || null, payment_date || null, comments || null, req.user.id, req.params.id]
     );
-    await awardLoyaltyForPayment({ advertiser_id, campaign_id });
+    await awardLoyaltyForPayment({ member_id, campaign_id });
 
     const [rows] = await pool.query(`${LIST_SELECT} WHERE p.id=?`, [req.params.id]);
     if (!rows.length) return res.status(404).json({ message: 'Not found' });

@@ -30,10 +30,10 @@ const VIEWS = {
       { title: 'Revenue', dataIndex: 'total_revenue', format: 'money', total: true },
     ],
   },
-  'revenue:advertiser': {
-    path: '/reports/revenue/by-advertiser', label: 'By Advertiser',
+  'revenue:member': {
+    path: '/reports/revenue/by-member', label: 'By Member',
     columns: [
-      { title: 'Advertiser', dataIndex: 'advertiser_name' },
+      { title: 'Member', dataIndex: 'member_name' },
       { title: 'Payments', dataIndex: 'payment_count', format: 'number' },
       { title: 'Revenue', dataIndex: 'total_revenue', format: 'money', total: true },
     ],
@@ -94,7 +94,7 @@ const VIEWS = {
 };
 
 const CATEGORY_SUBVIEWS = {
-  revenue:     ['campaign', 'advertiser', 'stage', 'date'],
+  revenue:     ['campaign', 'member', 'stage', 'date'],
   profit:      ['campaign'],
   expenditure: ['campaign', 'item', 'date'],
 };
@@ -277,7 +277,7 @@ export default function CampaignsReport() {
         style={{ marginBottom: 4 }}
       />
 
-      {/* Sub-view selector (Campaign / Advertiser / Stage / Date, etc.) */}
+      {/* Sub-view selector (Campaign / Member / Stage / Date, etc.) */}
       {CATEGORY_SUBVIEWS[category].length > 1 && (
         <Segmented
           block

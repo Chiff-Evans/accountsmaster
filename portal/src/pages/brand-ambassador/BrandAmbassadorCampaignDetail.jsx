@@ -132,7 +132,7 @@ export default function BrandAmbassadorCampaignDetail() {
   const today = todayStr();
   const actionableDays = days.filter(d => d <= today);
   const doneCount = actionableDays.filter(d => proofFor(d)).length;
-  const proofsLocked = campaign.advertiser_can_edit === 0;
+  const proofsLocked = campaign.member_can_edit === 0;
 
   return (
     <div className="page-content">
@@ -142,7 +142,7 @@ export default function BrandAmbassadorCampaignDetail() {
         <Tag color={campaign.stage_color || STAGE_COLOR[campaign.stage_name] || 'default'}>{campaign.stage_name || '—'}</Tag>
       </div>
 
-      {campaign.advertiser_name && <div style={styles.row}><span>Advertiser</span><span>{campaign.advertiser_name}</span></div>}
+      {campaign.member_name && <div style={styles.row}><span>Member</span><span>{campaign.member_name}</span></div>}
       {campaign.file_no && <div style={styles.row}><span>Ref No</span><span>{campaign.file_no}</span></div>}
       {campaign.campaign_type_name && <div style={styles.row}><span>Type</span><span>{campaign.campaign_type_name}</span></div>}
       {campaign.duration_value && <div style={styles.row}><span>Duration</span><span>{campaign.duration_value} {campaign.duration_unit_name}</span></div>}

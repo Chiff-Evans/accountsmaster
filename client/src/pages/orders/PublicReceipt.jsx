@@ -71,9 +71,9 @@ export default function PublicReceipt() {
         {/* Customer */}
         <div style={styles.section}>
           <div style={styles.sectionLabel}>Customer</div>
-          <div style={styles.customerName}>{order.shop_name || order.advertiser_name}</div>
-          {(order.shop_phone || order.advertiser_phone) && <div style={styles.sub}>{order.shop_phone || order.advertiser_phone}</div>}
-          {(order.shop_email || order.advertiser_email) && <div style={styles.sub}>{order.shop_email || order.advertiser_email}</div>}
+          <div style={styles.customerName}>{order.shop_name || order.member_name}</div>
+          {(order.shop_phone || order.member_phone) && <div style={styles.sub}>{order.shop_phone || order.member_phone}</div>}
+          {(order.shop_email || order.member_email) && <div style={styles.sub}>{order.shop_email || order.member_email}</div>}
           {receipt.tax_no   && <div style={styles.sub}>Tax No: {receipt.tax_no}</div>}
         </div>
 

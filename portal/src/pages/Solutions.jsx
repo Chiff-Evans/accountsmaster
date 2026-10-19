@@ -10,7 +10,7 @@ import api from '../api';
 const STEPS = [
   {
     icon: <ShopOutlined />,
-    title: 'Advertisers Register and Submit a Campaign',
+    title: 'Members Register and Submit a Campaign',
     body: 'Tell us about your brand and what you want advertised — a product launch, an event or anything worth talking about ataffordable rates.',
   },
   {
@@ -21,7 +21,7 @@ const STEPS = [
   {
     icon: <LineChartOutlined />,
     title: 'Payments',
-    body: 'Advertisers pay before the campaign starts. Ambassadors get paid after the campaign ends and we verify reach. We handle all payments and payouts.',
+    body: 'Members pay before the campaign starts. Ambassadors get paid after the campaign ends and we verify reach. We handle all payments and payouts.',
   },
 ];
 
@@ -48,7 +48,7 @@ export default function Solutions() {
         <div style={{ display: 'flex', gap: 12, marginTop: 28, flexWrap: 'wrap', justifyContent: 'center' }}>
           <Link to="/register">
             <Button type="primary" size="large" icon={<RocketOutlined />} style={{ height: 46, borderRadius: 10, fontWeight: 600 }}>
-              Register as an Advertiser
+              Register as a Member
             </Button>
           </Link>
           <Link to="/brand-ambassador/register">
@@ -65,7 +65,7 @@ export default function Solutions() {
         <Row gutter={[20, 20]} style={{ marginBottom: 40 }}>
           <Col xs={24} md={12}>
             <Card style={styles.roleCard} styles={{ body: { padding: 24 } }}>
-              <Typography.Title level={4} style={{ margin: '12px 0 6px', textAlign: 'center' }}>Advertiser</Typography.Title>
+              <Typography.Title level={4} style={{ margin: '12px 0 6px', textAlign: 'center' }}>Member</Typography.Title>
               <Typography.Text type="secondary">
                 A business, brand, or individual who wants their product, service, or message put in front
                 of real people. You submit campaigns, we quote a fee, and we handle getting it posted.
@@ -77,7 +77,7 @@ export default function Solutions() {
               <Typography.Title level={4} style={{ margin: '12px 0 6px', textAlign: 'center' }}>Brand Ambassador</Typography.Title>
               <Typography.Text type="secondary">
                 Someone with an active status audience who gets paid to post about a brand
-                on an advertiser's behalf — turning their daily status updates into rewards.
+                on a member's behalf — turning their daily status updates into rewards.
               </Typography.Text>
             </Card>
           </Col>

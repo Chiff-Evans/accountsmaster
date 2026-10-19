@@ -6,7 +6,7 @@ router.use(authenticate);
 
 /* Reports for the campaign model — Revenue (payments), Expenditure, and
    Profit (revenue - expenditure), all attributed to Campaigns and their
-   owning Advertiser. Every endpoint accepts optional date_from/date_to
+   owning Member. Every endpoint accepts optional date_from/date_to
    (YYYY-MM-DD); with neither given, it reports across all time. */
 function range(req, col) {
   const { date_from, date_to } = req.query;
@@ -57,21 +57,21 @@ router.get('/revenue/by-campaign', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/revenue/by-advertiser', async (req, res, next) => {
+router.get('/revenue/by-member', async (req, res, next) => {
   try {
     const { where, params } = range(req, 'p.payment_date');
     const [data] = await pool.query(
-      `SELECT p.advertiser_id, COALESCE(c.advertiser_name, CONCAT(c.firstname,' ',c.lastname)) AS advertiser_name,
+      `SELECT p.member_id, COALESCE(c.member_name, CONCAT(c.firstname,' ',c.lastname)) AS member_name,
               COUNT(p.id) AS payment_count, COALESCE(SUM(p.amount),0) AS total_revenue
        FROM payments p
-       LEFT JOIN advertisers c ON p.advertiser_id = c.id
+       LEFT JOIN members c ON p.member_id = c.id
        WHERE ${where}
-       GROUP BY p.advertiser_id
+       GROUP BY p.member_id
        ORDER BY total_revenue DESC`,
       params
     );
     const [[summary]] = await pool.query(
-      `SELECT COUNT(DISTINCT p.advertiser_id) AS advertiser_count, COALESCE(SUM(p.amount),0) AS total_revenue FROM payments p WHERE ${where}`,
+      `SELECT COUNT(DISTINCT p.member_id) AS member_count, COALESCE(SUM(p.amount),0) AS total_revenue FROM payments p WHERE ${where}`,
       params
     );
     res.json({ data, summary });

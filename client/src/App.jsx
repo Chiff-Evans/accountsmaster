@@ -15,13 +15,11 @@ import Users from './pages/users/Users';
 import Payments from './pages/stock/Payments';
 import Expenditure from './pages/stock/Expenditure';
 import Salaries from './pages/stock/Salaries';
-import Advertisers from './pages/advertisers/Advertisers';
+import Members from './pages/members/Members';
 import ReceiptConfig from './pages/stock/ReceiptConfig';
 import PublicReceipt from './pages/orders/PublicReceipt';
 import CampaignsReport from './pages/reports/CampaignsReport';
 import Parameters from './pages/config/Parameters';
-import BrandAmbassadors from './pages/brand-ambassadors/BrandAmbassadors';
-import BrandAmbassadorSettings from './pages/config/BrandAmbassadorSettings';
 import Campaigns from './pages/campaigns/Campaigns';
 import ProofReview from './pages/campaigns/ProofReview';
 
@@ -54,15 +52,13 @@ export default function App() {
                     <Route path="/config/workflows"     element={<Workflows />} />
                     <Route path="/config/loyalty"       element={<LoyaltyConfig />} />
                     <Route path="/config/parameters"    element={<Parameters />} />
-                    <Route path="/config/brand-ambassador-settings" element={<BrandAmbassadorSettings />} />
                     <Route path="/users"                 element={<Users />} />
                     <Route path="/stock/payments"        element={<Payments />} />
                     <Route path="/stock/expenditure"     element={<Expenditure />} />
                     <Route path="/stock/salaries"        element={<Salaries />} />
-                    <Route path="/advertisers"            element={<Advertisers />} />
+                    <Route path="/members"            element={<Members />} />
                     <Route path="/stock/receipt-config" element={<ReceiptConfig />} />
                     <Route path="/reports/campaigns"    element={<CampaignsReport />} />
-                    <Route path="/brand-ambassadors"    element={<BrandAmbassadors />} />
                     <Route path="/campaigns"            element={<Campaigns />} />
                     <Route path="/campaigns/proof-review" element={<ProofReview />} />
                   </Routes>

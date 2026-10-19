@@ -59,7 +59,7 @@ const uploadFiles = uploadAvatar.fields([
 ]);
 
 /* ── brand ambassador JWT middleware (separate secret/type from the
-   advertiser portal, so a brand ambassador token and an advertiser token
+   member portal, so a brand ambassador token and a member token
    can never be confused) ── */
 const auth = async (req, res, next) => {
   const header = req.headers.authorization;
@@ -102,7 +102,7 @@ router.get('/business-info', async (req, res, next) => {
 });
 
 /* GET /api/brand-ambassador-portal/parameters/values?parameter_id=X — same
-   generic read-only lookup as the advertiser portal (Country/County/Sub-County,
+   generic read-only lookup as the member portal (Country/County/Sub-County,
    Advertising Areas, etc). */
 router.get('/parameters/values', async (req, res, next) => {
   try {
@@ -268,24 +268,24 @@ router.get('/auth/me', async (req, res, next) => {
 });
 
 /* Creative + targeting details a brand ambassador needs to post (no
-   budget/discount/payment fields — those are the advertiser's own
+   budget/discount/payment fields — those are the member's own
    bookkeeping, not the brand ambassador's concern). */
 const MY_CAMPAIGNS_SELECT = `
   SELECT c.id, c.file_no, c.campaign_title, c.description, c.posters, c.attachments,
          c.website_link, c.whatsapp_number, c.promo_code, c.duration_value,
          c.start_date, c.end_date,
          c.target_audience,
-         cl.advertiser_name,
+         cl.member_name,
          ct.paramater_value  AS campaign_type_name,
          du.paramater_value  AS duration_unit_name,
          tco.paramater_value AS target_country_name,
          tcy.paramater_value AS target_county_name,
          tsc.paramater_value AS target_subcounty_name,
-         ws.stage_name, ws.stage_color, ws.advertiser_can_edit,
+         ws.stage_name, ws.stage_color, ws.member_can_edit,
          ca.assigned_on, ca.proof_deadline
   FROM campaign_brand_ambassadors ca
   JOIN campaigns c               ON ca.campaign_id = c.id
-  LEFT JOIN advertisers cl       ON c.advertiser_id = cl.id
+  LEFT JOIN members cl       ON c.member_id = cl.id
   LEFT JOIN parameter_values ct  ON c.campaign_type_id = ct.id
   LEFT JOIN parameter_values du  ON c.duration_unit_id = du.id
   LEFT JOIN parameter_values tco ON c.target_country_id = tco.id
@@ -373,13 +373,13 @@ router.post('/campaign-proofs', uploadProof.single('proof_image'), async (req, r
     if (!assigned) return res.status(403).json({ message: 'You are not assigned to this campaign' });
 
     const [[campaign]] = await pool.query(
-      `SELECT c.start_date, c.end_date, ws.advertiser_can_edit
+      `SELECT c.start_date, c.end_date, ws.member_can_edit
        FROM campaigns c LEFT JOIN workflow_stages ws ON c.workflow_stage_id = ws.id
        WHERE c.id=?`,
       [campaign_id]
     );
     if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
-    if (campaign.advertiser_can_edit === 0) {
+    if (campaign.member_can_edit === 0) {
       return res.status(403).json({ message: 'Posting proof can no longer be submitted for this campaign at its current stage' });
     }
 

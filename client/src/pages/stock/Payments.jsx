@@ -34,7 +34,7 @@ export default function Payments() {
     api.get(`/payments/campaign-balance/${selectedCampaignId}`)
       .then(r => {
         if (ignore) return;
-        form.setFieldsValue({ advertiser_id: r.data.advertiser_id, amount: r.data.balance > 0 ? r.data.balance : undefined });
+        form.setFieldsValue({ member_id: r.data.member_id, amount: r.data.balance > 0 ? r.data.balance : undefined });
       })
       .catch(() => {});
     return () => { ignore = true; };
@@ -76,7 +76,7 @@ export default function Payments() {
     setFileNo(r.file_no);
     form.setFieldsValue({
       campaign_id: r.campaign_id,
-      advertiser_id: r.advertiser_id,
+      member_id: r.member_id,
       currency_id: r.currency_id,
       payment_mode_id: r.payment_mode_id,
       amount: r.amount,
@@ -108,7 +108,7 @@ export default function Payments() {
   const columns = [
     { title: 'File No', dataIndex: 'file_no', key: 'file_no', render: v => v ? <Tag color="blue">{v}</Tag> : null },
     { title: 'Campaign', dataIndex: 'campaign_title', key: 'campaign', mobileHeaderSize: 13, mobileExpanded: true },
-    { title: 'Advertiser', dataIndex: 'advertiser_name', key: 'advertiser' },
+    { title: 'Member', dataIndex: 'member_name', key: 'member' },
     { title: 'Mode', dataIndex: 'payment_mode_name', key: 'mode', mobileExpanded: true, render: v => v ? <Tag>{v}</Tag> : '—' },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', render: v => v != null ? Number(v).toLocaleString() : '—' },
     { title: 'Date', dataIndex: 'payment_date', key: 'date', mobileExpanded: true, render: v => v ? dayjs(v).format('D MMM YYYY') : '—' },
@@ -130,7 +130,7 @@ export default function Payments() {
         onSearch={v => { setSearch(v); setPage(1); }}
         onRefresh={load}
         pagination={{ current: page, total, pageSize: limit, onChange: (p, ps) => { setPage(p); setLimit(ps); }, showTotal: t => `${t} payments` }}
-        searchPlaceholder="Search by file no, campaign, advertiser or reference..."
+        searchPlaceholder="Search by file no, campaign, member or reference..."
       />
 
       <Modal
@@ -155,7 +155,7 @@ export default function Payments() {
                 optionFilterProp="children"
                 onChange={v => {
                   const c = campaigns.find(cm => cm.id === v);
-                  if (c) form.setFieldsValue({ advertiser_id: c.advertiser_id });
+                  if (c) form.setFieldsValue({ member_id: c.member_id });
                 }}
               >
                 {campaigns.map(c => <Select.Option key={c.id} value={c.id}>{c.campaign_title}</Select.Option>)}
@@ -163,15 +163,15 @@ export default function Payments() {
             </Form.Item>
           </LabelField>
 
-          <LabelField label="Advertiser">
+          <LabelField label="Member">
             <div style={{
               border: '1px solid #d9d9d9', borderRadius: 6, padding: '6px 11px',
               background: '#fafafa', minHeight: 32, display: 'flex', alignItems: 'center',
               marginBottom: 20, fontSize: 13,
             }}>
-              {selectedCampaign?.advertiser_display_name || '—'}
+              {selectedCampaign?.member_display_name || '—'}
             </div>
-            <Form.Item name="advertiser_id" rules={[{ required: true, message: 'Select a campaign first' }]} style={{ display: 'none' }}>
+            <Form.Item name="member_id" rules={[{ required: true, message: 'Select a campaign first' }]} style={{ display: 'none' }}>
               <Input />
             </Form.Item>
           </LabelField>

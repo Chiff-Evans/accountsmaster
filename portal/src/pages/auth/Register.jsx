@@ -13,7 +13,7 @@ export default function Register() {
   const [success, setSuccess]   = useState('');
   const [loading, setLoading]   = useState(false);
 
-  const [advertiserTypes, setAdvertiserTypes] = useState([]); // parameter_id 12
+  const [memberTypes, setMemberTypes] = useState([]); // parameter_id 12
   const [industries, setIndustries]   = useState([]); // parameter_id 14
   const [countries, setCountries]     = useState([]); // parameter_id 15
   const [counties, setCounties]       = useState([]); // parameter_id 16
@@ -30,7 +30,7 @@ export default function Register() {
   };
 
   useEffect(() => {
-    loadWithDefault(12, setAdvertiserTypes, 'advertiser_type_id');
+    loadWithDefault(12, setMemberTypes, 'member_type_id');
     loadWithDefault(14, setIndustries, 'industry_id');
     loadWithDefault(15, setCountries, 'country_id');
     loadWithDefault(16, setCounties, 'county_id');
@@ -64,7 +64,7 @@ export default function Register() {
       <div style={styles.card}>
         <div style={styles.logo}>BB</div>
         <Typography.Title level={3} style={{ textAlign: 'center', margin: '0 0 4px', color: '#22c55e' }}>
-          Register as an Advertiser
+          Register as a Member
         </Typography.Title>
         <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 4 }}>
           Accounts Master — Advertise on Status
@@ -80,7 +80,7 @@ export default function Register() {
           message=""
           description={
             <>
-              <strong>Advertiser</strong> — A business or individual that require advertisement services.
+              <strong>Member</strong> — A business or individual that require advertisement services.
             </>
           }
         />
@@ -90,17 +90,17 @@ export default function Register() {
 
         {!success && (
           <Form form={form} layout="vertical" onFinish={onFinish}>
-            <FieldWrapper label="Advertiser Name" required>
-              <Form.Item name="advertiser_name" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 0 }}>
+            <FieldWrapper label="Member Name" required>
+              <Form.Item name="member_name" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 0 }}>
                 <Input variant="borderless" placeholder="Company or your name" style={{ padding: '2px 0' }} />
               </Form.Item>
             </FieldWrapper>
 
             <div style={styles.grid}>
               <FieldWrapper label="Company or Individual" style={{ marginBottom: 0 }}>
-                <Form.Item name="advertiser_type_id" style={{ marginBottom: 0 }}>
+                <Form.Item name="member_type_id" style={{ marginBottom: 0 }}>
                   <Select variant="borderless" placeholder="Select type" allowClear style={{ marginLeft: -7, width: 'calc(100% + 7px)' }}>
-                    {advertiserTypes.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
+                    {memberTypes.map(c => <Select.Option key={c.id} value={c.id}>{c.paramater_value}</Select.Option>)}
                   </Select>
                 </Form.Item>
               </FieldWrapper>

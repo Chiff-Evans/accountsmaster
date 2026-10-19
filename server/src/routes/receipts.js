@@ -32,11 +32,11 @@ router.get('/public/:receipt_no', async (req, res, next) => {
     const [[order]] = await pool.query(
       `SELECT o.id, o.order_ref_no, o.total_amount, o.created_at,
               sh.shop_name, sh.phone AS shop_phone, sh.email AS shop_email,
-              CONCAT(dc.firstname,' ',dc.lastname) AS advertiser_name,
-              dc.phone AS advertiser_phone, dc.email AS advertiser_email
+              CONCAT(dc.firstname,' ',dc.lastname) AS member_name,
+              dc.phone AS member_phone, dc.email AS member_email
        FROM orders o
        LEFT JOIN shops sh       ON o.shop_id       = sh.id
-       LEFT JOIN advertisers dc ON o.advertiser_id = dc.id
+       LEFT JOIN members dc ON o.member_id = dc.id
        WHERE o.id = ?`,
       [receipt.order_id]
     );
@@ -65,17 +65,17 @@ router.get('/order/:order_id', async (req, res, next) => {
     const { order_id } = req.params;
 
     const [[order]] = await pool.query(
-      `SELECT o.id, o.order_ref_no, o.total_amount, o.created_at, o.shop_id, o.advertiser_id,
+      `SELECT o.id, o.order_ref_no, o.total_amount, o.created_at, o.shop_id, o.member_id,
               sh.shop_name, sh.phone AS shop_phone,
               sh.email AS shop_email,
               sh.geolocation AS shop_address,
-              CONCAT(dc.firstname,' ',dc.lastname) AS advertiser_name,
-              dc.phone AS advertiser_phone, dc.email AS advertiser_email,
+              CONCAT(dc.firstname,' ',dc.lastname) AS member_name,
+              dc.phone AS member_phone, dc.email AS member_email,
               CONCAT(u.firstname,' ',u.lastname) AS ordered_by_name,
               ws.stage_name
        FROM orders o
        LEFT JOIN shops sh           ON o.shop_id           = sh.id
-       LEFT JOIN advertisers dc     ON o.advertiser_id     = dc.id
+       LEFT JOIN members dc     ON o.member_id     = dc.id
        LEFT JOIN users u            ON o.ordered_by        = u.id
        LEFT JOIN workflow_stages ws ON o.workflow_stage_id = ws.id
        WHERE o.id = ?`,
