@@ -162,6 +162,7 @@ export default function CrudTable({
   hidePagination = false,
   extraActions,
   heightOffset = 0,
+  summaryRow,
 }) {
   const perms   = usePagePermissions();
   const isMobile = useIsMobile();
@@ -379,6 +380,16 @@ export default function CrudTable({
               />
             ))
           )}
+          {/* Totals card — same column renderers as the rows above */}
+          {summaryRow && !loading && displayData?.length > 0 && (
+            <RecordCard
+              record={summaryRow}
+              columns={columns}
+              rowKey={rowKey}
+              showEdit={false}
+              showDelete={false}
+            />
+          )}
         </div>
       ) : (
         <div style={hidePagination && !fixedHeight ? {} : { flex: 1, minHeight: 0 }}>
@@ -390,6 +401,26 @@ export default function CrudTable({
             pagination={false}
             scroll={{ x: 'max-content', y: scrollY }}
             size="small"
+            summary={summaryRow ? () => {
+              // Optional totals row, sticky at the bottom; each cell reuses
+              // its column's render so totals format like the rows above.
+              const allCols = [...columns, ...actionCol];
+              return (
+                <Table.Summary fixed>
+                  <Table.Summary.Row style={{ background: '#fafafa' }}>
+                    {allCols.map((col, i) => {
+                      const val = col.dataIndex ? summaryRow[col.dataIndex] : undefined;
+                      const content = col.render ? col.render(val, summaryRow, -1) : val;
+                      return (
+                        <Table.Summary.Cell key={col.key ?? i} index={i} align={col.align}>
+                          <strong>{content}</strong>
+                        </Table.Summary.Cell>
+                      );
+                    })}
+                  </Table.Summary.Row>
+                </Table.Summary>
+              );
+            } : undefined}
             expandable={isTreeData ? {
               expandedRowKeys: effectiveExpandedKeys,
               onExpandedRowsChange: keys => { if (!searchText) setExpandedKeys(keys); },

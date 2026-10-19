@@ -25,6 +25,7 @@ app.use('/api/users',         require('./routes/users'));
 app.use('/api/process-types', require('./routes/processTypes'));
 app.use('/api/ref-numbers',   require('./routes/refNumbers'));
 app.use('/api/members',   require('./routes/members'));
+app.use('/api/member-statistics', require('./routes/memberStatistics'));
 app.use('/api/orders',        require('./routes/orders'));
 app.use('/api/parameters',    require('./routes/parameters'));
 app.use('/api/targets',       require('./routes/targets'));

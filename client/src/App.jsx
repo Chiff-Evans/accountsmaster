@@ -16,6 +16,7 @@ import Payments from './pages/stock/Payments';
 import Expenditure from './pages/stock/Expenditure';
 import Salaries from './pages/stock/Salaries';
 import Members from './pages/members/Members';
+import MemberStatistics from './pages/members/MemberStatistics';
 import ReceiptConfig from './pages/stock/ReceiptConfig';
 import PublicReceipt from './pages/orders/PublicReceipt';
 import CampaignsReport from './pages/reports/CampaignsReport';
@@ -58,6 +59,7 @@ export default function App() {
                     <Route path="/stock/expenditure"     element={<Expenditure />} />
                     <Route path="/stock/salaries"        element={<Salaries />} />
                     <Route path="/members"            element={<Members />} />
+                    <Route path="/members/statistics" element={<MemberStatistics />} />
                     <Route path="/stock/receipt-config" element={<ReceiptConfig />} />
                     <Route path="/reports/campaigns"    element={<CampaignsReport />} />
                     <Route path="/transactions"         element={<Transactions />} />
