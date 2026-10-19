@@ -67,6 +67,7 @@ export default function NextOfKinModal({ member, onClose }) {
   };
 
   const columns = [
+    { title: 'Ref No', dataIndex: 'kin_ref_no', key: 'ref', width: 110, render: v => v ? <Tag color="blue">{v}</Tag> : null },
     { title: 'Name', dataIndex: 'kin_name', key: 'name' },
     { title: 'Relationship', dataIndex: 'relationship_name', key: 'rel', render: v => v ? <Tag>{v}</Tag> : '—' },
     { title: 'ID Number', dataIndex: 'id_number', key: 'idno', mobileExpanded: true },

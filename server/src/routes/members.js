@@ -282,7 +282,7 @@ router.post('/:id/reset-password', canEdit, async (req, res, next) => {
 /* ── Next of kin — nested under a member, same permissions as members ── */
 
 const KIN_SELECT = `
-  SELECT k.id, k.member_id, k.kin_name, k.relationship_id, k.id_number, k.phone, k.email,
+  SELECT k.id, k.member_id, k.kin_ref_no, k.kin_name, k.relationship_id, k.id_number, k.phone, k.email,
          k.created_on, k.updated_on, rel.paramater_value AS relationship_name
   FROM member_next_of_kin k
   LEFT JOIN parameter_values rel ON k.relationship_id = rel.id
@@ -302,10 +302,11 @@ router.post('/:id/next-of-kin', canCreate, async (req, res, next) => {
     const [[member]] = await pool.query('SELECT id FROM members WHERE id=?', [req.params.id]);
     if (!member) return res.status(404).json({ message: 'Member not found' });
 
+    const kin_ref_no = await generateRefNo('next_of_kin_registration');
     const [result] = await pool.query(
-      `INSERT INTO member_next_of_kin (member_id, kin_name, relationship_id, id_number, phone, email, created_by)
-       VALUES (?,?,?,?,?,?,?)`,
-      [req.params.id, kin_name, relationship_id || null, id_number || null, phone || null, email || null, req.user.id]
+      `INSERT INTO member_next_of_kin (member_id, kin_ref_no, kin_name, relationship_id, id_number, phone, email, created_by)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [req.params.id, kin_ref_no, kin_name, relationship_id || null, id_number || null, phone || null, email || null, req.user.id]
     );
     const [rows] = await pool.query(`${KIN_SELECT} WHERE k.id=?`, [result.insertId]);
     res.status(201).json(rows[0]);
