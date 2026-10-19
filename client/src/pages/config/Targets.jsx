@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, InputNumber, DatePicker, message } from 'antd';
+import { Modal, Form, InputNumber, DatePicker, Switch, Tag, message } from 'antd';
 import dayjs from 'dayjs';
 import CrudTable from '../../components/common/CrudTable';
 import LabelField from '../../components/common/LabelField';
@@ -28,6 +28,7 @@ export default function Targets() {
   const openAdd = () => {
     setEditing(null);
     form.resetFields();
+    form.setFieldsValue({ is_active: false });
     setOpen(true);
   };
 
@@ -36,6 +37,7 @@ export default function Targets() {
     form.setFieldsValue({
       target_amount: r.target_amount != null ? Number(r.target_amount) : null,
       target_date: r.target_date ? dayjs(r.target_date) : null,
+      is_active: !!r.is_active,
     });
     setOpen(true);
   };
@@ -45,6 +47,7 @@ export default function Targets() {
     const payload = {
       target_amount: vals.target_amount,
       target_date: vals.target_date.format('YYYY-MM-DD'),
+      is_active: !!vals.is_active,
     };
     setSaving(true);
     try {
@@ -61,6 +64,12 @@ export default function Targets() {
   const columns = [
     { title: 'Target Date', dataIndex: 'target_date', key: 'date', render: v => v ? dayjs(v).format('D MMM YYYY') : '—' },
     { title: 'Target Amount', dataIndex: 'target_amount', key: 'amount', align: 'right', mobileAlign: 'right', render: fmtAmount },
+    { title: 'Active', dataIndex: 'is_active', key: 'active', mobileExpanded: true,
+      render: v => <Tag color={v ? 'green' : 'default'}>{v ? 'Active' : 'Inactive'}</Tag> },
+    { title: 'Date Created', dataIndex: 'created_on', key: 'created_on', mobileExpanded: true,
+      render: v => v ? dayjs(v).format('D MMM YYYY, HH:mm') : '—' },
+    { title: 'Created By', key: 'created_by', mobileExpanded: true,
+      render: (_, r) => r.created_by_name || r.created_by_username || '—' },
   ];
 
   return (
@@ -104,10 +113,20 @@ export default function Targets() {
             </Form.Item>
           </LabelField>
           <LabelField label="Target Date" required>
-            <Form.Item name="target_date" rules={[{ required: true, message: 'Target date is required' }]} style={{ marginBottom: 0 }}>
+            <Form.Item name="target_date" rules={[{ required: true, message: 'Target date is required' }]} style={{ marginBottom: 20 }}>
               <DatePicker style={{ width: '100%' }} format="D MMM YYYY" />
             </Form.Item>
           </LabelField>
+
+          <Form.Item
+            name="is_active"
+            label="Active"
+            valuePropName="checked"
+            tooltip="Only one target can be active. Activating this one deactivates the others."
+            style={{ marginBottom: 0 }}
+          >
+            <Switch />
+          </Form.Item>
         </Form>
       </Modal>
     </>
