@@ -5,6 +5,7 @@ import Login        from './pages/auth/Login';
 import Register     from './pages/auth/Register';
 import Dashboard    from './pages/Dashboard';
 import Transactions from './pages/Transactions';
+import TransactionDetail from './pages/TransactionDetail';
 import NextOfKin    from './pages/NextOfKin';
 import Profile      from './pages/Profile';
 
@@ -28,6 +29,7 @@ export default function App() {
                   <Route path="/"             element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard"    element={<Dashboard />} />
                   <Route path="/transactions" element={<Transactions />} />
+                  <Route path="/transactions/:id" element={<TransactionDetail />} />
                   <Route path="/next-of-kin"  element={<NextOfKin />} />
                   <Route path="/profile"      element={<Profile />} />
                   <Route path="*"             element={<Navigate to="/dashboard" replace />} />

@@ -331,6 +331,28 @@ router.get('/transactions', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* GET /api/member-portal/transactions/:id — one of the member's own
+   transactions in full. Scoped to req.member.id, so another member's id
+   is a 404, not a leak. */
+router.get('/transactions/:id', async (req, res, next) => {
+  try {
+    const [[tx]] = await pool.query(
+      `SELECT t.id, t.file_no, t.amount, t.other_details, t.transaction_type_id,
+              tt.paramater_value AS transaction_type_name,
+              DATE_FORMAT(t.transaction_date, '%Y-%m-%d') AS transaction_date,
+              DATE_FORMAT(t.from_date, '%Y-%m-%d') AS from_date,
+              DATE_FORMAT(t.to_date, '%Y-%m-%d') AS to_date,
+              t.created_on, t.updated_on
+       FROM transactions t
+       LEFT JOIN parameter_values tt ON t.transaction_type_id = tt.id
+       WHERE t.id = ? AND t.member_id = ?`,
+      [req.params.id, req.member.id]
+    );
+    if (!tx) return res.status(404).json({ message: 'Transaction not found' });
+    res.json(tx);
+  } catch (err) { next(err); }
+});
+
 /* ── NEXT OF KIN — the member's own, read-only (staff maintain them) ── */
 router.get('/next-of-kin', async (req, res, next) => {
   try {
