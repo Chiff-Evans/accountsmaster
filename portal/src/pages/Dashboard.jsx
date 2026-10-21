@@ -60,11 +60,11 @@ export default function Dashboard() {
             />
             {overpaid ? (
               <div style={{ ...styles.pill, background: '#f0fdf4', color: '#16a34a' }}>
-                Target met · Overpaid by {money(statement.overpayment)}
+                Target met · Overpay: {money(statement.overpayment)}
               </div>
             ) : statement.balance > 0 ? (
               <div style={{ ...styles.pill, background: '#fff7ed', color: '#c2410c' }}>
-                Balance remaining: {money(statement.balance)}
+                Outstanding Balance: {money(statement.balance)}
               </div>
             ) : (
               <div style={{ ...styles.pill, background: '#f0fdf4', color: '#16a34a' }}>Target met</div>
