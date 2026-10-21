@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Form, Input, Button, Alert, Typography, Checkbox } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate, Link } from 'react-router-dom';
@@ -14,6 +14,19 @@ export default function Login() {
   const navigate  = useNavigate();
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
+  // Business Setup name/logo (public endpoint); the app name until it loads
+  // or if the request fails, so the page never shows a blank title.
+  const [businessName, setBusinessName] = useState(CONFIG.appName);
+  const [businessLogo, setBusinessLogo] = useState(null);
+
+  useEffect(() => {
+    api.get('/business-info')
+      .then(({ data }) => {
+        if (data?.business_name) setBusinessName(data.business_name);
+        if (data?.logo) setBusinessLogo(data.logo);
+      })
+      .catch(() => {});
+  }, []);
 
   const onFinish = async vals => {
     setError(''); setLoading(true);
@@ -33,9 +46,11 @@ export default function Login() {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <div style={styles.logo}>{initials(CONFIG.appName)}</div>
+        {businessLogo
+          ? <img src={businessLogo} alt={businessName} style={styles.logoImg} />
+          : <div style={styles.logo}>{initials(businessName)}</div>}
         <Typography.Title level={3} style={{ textAlign: 'center', margin: '0 0 4px', color: '#22c55e' }}>
-        
+          {businessName}
         </Typography.Title>
         <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
           {CONFIG.appName}
@@ -92,6 +107,10 @@ const styles = {
     background: '#fff', borderRadius: 16, padding: '32px 28px',
     width: '100%', maxWidth: 400,
     boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+  },
+  logoImg: {
+    display: 'block', width: 64, height: 64, objectFit: 'contain',
+    borderRadius: 14, margin: '0 auto 20px',
   },
   logo: {
     width: 56, height: 56, borderRadius: 14, margin: '0 auto 20px',
