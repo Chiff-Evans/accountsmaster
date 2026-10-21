@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { ConfigProvider, App as AntApp, notification } from 'antd';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
+import { CONFIG } from './config';
 import './index.css';
 
 // Show a notification when a new version is available and auto-update
