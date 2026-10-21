@@ -281,7 +281,7 @@ router.post('/:id/portal-access', canEdit, async (req, res, next) => {
     const [[member]] = await pool.query('SELECT id, password_hash FROM members WHERE id=?', [req.params.id]);
     if (!member) return res.status(404).json({ message: 'Not found' });
     if (!member.password_hash && !new_password)
-      return res.status(400).json({ message: 'Set a password to give this member portal access' });
+      return res.status(400).json({ message: 'Set a password to give this members portal access' });
 
     const [[taken]] = await pool.query('SELECT id FROM members WHERE username=? AND id<>?', [username, req.params.id]);
     if (taken) return res.status(409).json({ message: 'Username already taken' });

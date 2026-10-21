@@ -162,7 +162,7 @@ router.post('/auth/register', async (req, res, next) => {
       await recordHistory({
         workflowId: initStage.workflow_id, processTypeId: initStage.process_type_id,
         entityType: 'member', entityId: r.insertId, entityRef: ref,
-        toStageId: initStage.stage_id, notes: 'Registered via member portal — pending approval',
+        toStageId: initStage.stage_id, notes: 'Registered via member portals — pending approval',
       });
     }
 

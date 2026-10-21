@@ -46,7 +46,7 @@ export default function AppLayout({ children }) {
               {businessName}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, letterSpacing: 0.3 }}>
-              Member Portal
+              Members Portal
             </div>
           </div>
 

@@ -370,7 +370,7 @@ export default function Members() {
 
       {/* Portal Access Modal — member portal username + password */}
       <Modal
-        title="Member Portal Access"
+        title="Members Portal Access"
         open={pwdModal} onOk={savePortalAccess} onCancel={() => setPwdModal(false)} centered
       >
         <Typography.Text>

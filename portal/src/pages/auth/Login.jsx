@@ -35,10 +35,10 @@ export default function Login() {
       <div style={styles.card}>
         <div style={styles.logo}>{initials(CONFIG.appName)}</div>
         <Typography.Title level={3} style={{ textAlign: 'center', margin: '0 0 4px', color: '#22c55e' }}>
-          {CONFIG.appName}
+        
         </Typography.Title>
         <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
-          Member Portal
+          {CONFIG.appName}
         </Typography.Text>
 
         {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
@@ -75,8 +75,8 @@ export default function Login() {
         </Form>
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <Typography.Text type="secondary">Not registered yet? </Typography.Text>
-          <Link to="/register" style={{ fontWeight: 600, color: '#4c8dff' }}>Register as a Member</Link>
+          {/* <Typography.Text type="secondary">Not registered yet? </Typography.Text>
+          <Link to="/register" style={{ fontWeight: 600, color: '#4c8dff' }}>Register as a Member</Link> */}
         </div>
       </div>
     </div>
