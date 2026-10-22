@@ -15,6 +15,9 @@ const { valueOfPeriodCents } = require('./contributionPeriod');
    A positive carry-forward is credit; a negative one is arrears (cover was
    extended past what was paid), which the next deposit settles first.
 
+   Migrated transactions (is_migrated = 1) are history keyed in as-is and are
+   never part of the chain.
+
    The chain is a member's deposits that have a rate snapshot, in cover
    order (CHAIN_KEY, then id). A deposit too small for one unit has no To
    Date — it covers nothing and its whole amount carries forward. Any
@@ -47,6 +50,7 @@ async function recalcMemberLedger(conn, memberId) {
      FROM transactions t
      JOIN parameter_values tt ON t.transaction_type_id = tt.id
      WHERE t.member_id = ? AND tt.paramater_value LIKE 'deposit%'
+       AND t.is_migrated = 0
        AND t.rate_amount IS NOT NULL AND t.rate_unit IS NOT NULL
      ORDER BY ${CHAIN_KEY}, t.id`,
     [memberId]

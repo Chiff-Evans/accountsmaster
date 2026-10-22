@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Space, Alert, message } from 'antd';
+import { Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Space, Alert, Checkbox, message } from 'antd';
 import dayjs from 'dayjs';
 import CrudTable from '../../components/common/CrudTable';
 import LabelField from '../../components/common/LabelField';
@@ -79,10 +79,12 @@ export default function Transactions() {
 
   const requestSuggestion = () => {
     clearTimeout(suggestTimer.current);
-    const { member_id, amount, transaction_type_id } = form.getFieldsValue(['member_id', 'amount', 'transaction_type_id']);
+    const { member_id, amount, transaction_type_id, is_migrated } =
+      form.getFieldsValue(['member_id', 'amount', 'transaction_type_id', 'is_migrated']);
     // Only deposits buy cover; withdrawals and other types keep their dates as entered.
+    // Migrated records are history keyed in as-is: nothing is calculated.
     // A member alone is enough for the From Date; the amount adds the To Date.
-    if (!member_id || !isDepositType(transaction_type_id)) {
+    if (is_migrated || !member_id || !isDepositType(transaction_type_id)) {
       suggestSeq.current += 1;
       setSuggestion(null); setSuggesting(false);
       return;
@@ -123,6 +125,7 @@ export default function Transactions() {
     form.setFieldsValue({
       transaction_date: dayjs(),
       transaction_type_id: transactionTypes.find(t => t.is_default)?.id,
+      is_migrated: false,
     });
     setOpen(true);
     try {
@@ -143,6 +146,7 @@ export default function Transactions() {
       to_date: r.to_date ? dayjs(r.to_date) : null,
       transaction_date: r.transaction_date ? dayjs(r.transaction_date) : null,
       other_details: r.other_details,
+      is_migrated: !!r.is_migrated,
     });
     setOpen(true);
   };
@@ -169,7 +173,13 @@ export default function Transactions() {
   };
 
   const columns = [
-    { title: 'File No', dataIndex: 'file_no', key: 'file_no', render: v => v ? <Tag color="blue">{v}</Tag> : null },
+    { title: 'File No', dataIndex: 'file_no', key: 'file_no',
+      render: (v, r) => (
+        <Space size={4} wrap>
+          {v && <Tag color="blue" style={{ margin: 0 }}>{v}</Tag>}
+          {!!r.is_migrated && <Tag color="purple" style={{ margin: 0 }}>Migrated</Tag>}
+        </Space>
+      ) },
     { title: 'Member', dataIndex: 'member_name', key: 'member' },
     { title: 'Type', dataIndex: 'transaction_type_name', key: 'type', mobileExpanded: true, render: v => v ? <Tag>{v}</Tag> : '—' },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right', mobileAlign: 'right', render: fmtAmount },
@@ -248,12 +258,25 @@ export default function Transactions() {
           form={form}
           layout="vertical"
           onValuesChange={changed => {
-            if ('amount' in changed || 'member_id' in changed || 'transaction_type_id' in changed) requestSuggestion();
+            // Ticking Is Migrated clears the working note and leaves the dates as typed;
+            // unticking it goes back to calculating them.
+            if ('amount' in changed || 'member_id' in changed || 'transaction_type_id' in changed || 'is_migrated' in changed) {
+              requestSuggestion();
+            }
           }}
         >
           <LabelField label="File No">
             <Input readOnly value={fileNo || '—'} style={{ color: '#1677ff', fontWeight: 600, marginBottom: 20 }} />
           </LabelField>
+
+          <Form.Item
+            name="is_migrated"
+            valuePropName="checked"
+            extra="For records carried over from a previous system: enter the dates yourself — no automatic dates, rate or credit/arrears."
+            style={{ marginBottom: 20 }}
+          >
+            <Checkbox>Is Migrated</Checkbox>
+          </Form.Item>
 
           <LabelField label="Member" required>
             <Form.Item name="member_id" rules={[{ required: true, message: 'Member is required' }]} style={{ marginBottom: 20 }}>

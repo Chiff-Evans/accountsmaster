@@ -16,7 +16,7 @@ const canDelete = requirePermission('/transactions', 'can_delete');
 // Dates come back as plain YYYY-MM-DD strings so the client never shifts
 // them across a timezone boundary.
 const LIST_SELECT = `
-  SELECT t.id, t.file_no, t.member_id, t.transaction_type_id, t.amount, t.other_details,
+  SELECT t.id, t.file_no, t.member_id, t.transaction_type_id, t.amount, t.other_details, t.is_migrated,
          DATE_FORMAT(t.from_date, '%Y-%m-%d')        AS from_date,
          DATE_FORMAT(t.to_date, '%Y-%m-%d')          AS to_date,
          DATE_FORMAT(t.transaction_date, '%Y-%m-%d') AS transaction_date,
@@ -230,8 +230,10 @@ function validate(body) {
    rate it was first recorded with; a new one takes the active rate. Every
    deposit is in the credit ledger — one too small for a unit has no To Date
    but still carries its amount forward. Non-deposits are outside it. */
-async function rateSnapshotFor(conn, { transaction_type_id }, existing) {
+async function rateSnapshotFor(conn, { transaction_type_id, is_migrated }, existing) {
   const none = { rate_id: null, rate_amount: null, rate_unit: null };
+  // Migrated records keep exactly what was entered — never priced or ledgered.
+  if (is_migrated) return none;
   if (!await isDepositTypeId(conn, transaction_type_id)) return none;
   const rate = await rateForTransaction(conn, existing);
   return rate ? { rate_id: rate.id, rate_amount: rate.amount, rate_unit: rate.unit } : none;
@@ -256,17 +258,18 @@ router.post('/', canCreate, async (req, res, next) => {
     const error = validate(req.body);
     if (error) return res.status(400).json({ message: error });
     const { member_id, transaction_type_id, amount, from_date, to_date, transaction_date, other_details } = req.body;
+    const is_migrated = req.body.is_migrated ? 1 : 0;
 
     const file_no = await generateRefNo('transaction_creation');
     const insertId = await inTransaction(async conn => {
-      const snap = await rateSnapshotFor(conn, req.body, null);
+      const snap = await rateSnapshotFor(conn, { ...req.body, is_migrated }, null);
       const [result] = await conn.query(
         `INSERT INTO transactions
            (file_no, member_id, transaction_type_id, amount, from_date, to_date,
-            rate_id, rate_amount, rate_unit, transaction_date, other_details, created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+            rate_id, rate_amount, rate_unit, transaction_date, other_details, is_migrated, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [file_no, member_id, transaction_type_id || null, amount, from_date || null, to_date || null,
-         snap.rate_id, snap.rate_amount, snap.rate_unit, transaction_date, other_details || null, req.user.id]
+         snap.rate_id, snap.rate_amount, snap.rate_unit, transaction_date, other_details || null, is_migrated, req.user.id]
       );
       await recalcMemberLedger(conn, member_id);
       return result.insertId;
@@ -277,13 +280,16 @@ router.post('/', canCreate, async (req, res, next) => {
 
     // Let the member see it in their portal (bell + push, per their preferences).
     // Tapping it opens this transaction's details — by hashed id, the only
-    // form the portal accepts in URLs.
-    const amountText = Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 });
-    await notify('member', tx.member_id, 'transaction_recorded', {
-      title: `${tx.transaction_type_name || 'Transaction'} of KES ${amountText} recorded`,
-      body: `${tx.file_no ? `${tx.file_no} · ` : ''}Dated ${tx.transaction_date}.`,
-      url: `/transactions/${encodeId(tx.id)}`,
-    });
+    // form the portal accepts in URLs. Migrated records are history being
+    // keyed in, not new activity, so they don't notify.
+    if (!tx.is_migrated) {
+      const amountText = Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 });
+      await notify('member', tx.member_id, 'transaction_recorded', {
+        title: `${tx.transaction_type_name || 'Transaction'} of KES ${amountText} recorded`,
+        body: `${tx.file_no ? `${tx.file_no} · ` : ''}Dated ${tx.transaction_date}.`,
+        url: `/transactions/${encodeId(tx.id)}`,
+      });
+    }
 
     res.status(201).json(tx);
   } catch (err) { next(err); }
@@ -294,20 +300,21 @@ router.put('/:id', canEdit, async (req, res, next) => {
     const error = validate(req.body);
     if (error) return res.status(400).json({ message: error });
     const { member_id, transaction_type_id, amount, from_date, to_date, transaction_date, other_details } = req.body;
+    const is_migrated = req.body.is_migrated ? 1 : 0;
 
     const found = await inTransaction(async conn => {
       const [[existing]] = await conn.query(
         'SELECT id, member_id, rate_id, rate_amount, rate_unit FROM transactions WHERE id=? FOR UPDATE', [req.params.id]
       );
       if (!existing) return false;
-      const snap = await rateSnapshotFor(conn, req.body, existing);
+      const snap = await rateSnapshotFor(conn, { ...req.body, is_migrated }, existing);
       await conn.query(
         `UPDATE transactions SET
            member_id=?, transaction_type_id=?, amount=?, from_date=?, to_date=?,
-           rate_id=?, rate_amount=?, rate_unit=?, transaction_date=?, other_details=?, updated_by=?
+           rate_id=?, rate_amount=?, rate_unit=?, transaction_date=?, other_details=?, is_migrated=?, updated_by=?
          WHERE id=?`,
         [member_id, transaction_type_id || null, amount, from_date || null, to_date || null,
-         snap.rate_id, snap.rate_amount, snap.rate_unit, transaction_date, other_details || null, req.user.id,
+         snap.rate_id, snap.rate_amount, snap.rate_unit, transaction_date, other_details || null, is_migrated, req.user.id,
          req.params.id]
       );
       // Moving a transaction to another member changes both members' chains.
