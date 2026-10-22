@@ -75,10 +75,12 @@ async function rateForTransaction(conn, existing) {
 }
 
 /* ── Suggested From/To dates for a deposit ──
-   GET /transactions/period-suggestion?member_id=[&amount=][&exclude_id=]
-     from_date = day after the member's latest To Date on another transaction;
-                 with none yet, their Reg Date, else the active rate's start.
-                 Needs only the member, so the form can fill it on selection.
+   GET /transactions/period-suggestion?member_id=[&amount=][&exclude_id=][&from_date=]
+     from_date = the from_date passed in, when staff typed their own start;
+                 otherwise the day after the member's latest To Date on another
+                 transaction; with none yet, their Reg Date, else the active
+                 rate's start. Needs only the member, so the form can fill it
+                 on selection.
      to_date   = only when `amount` is given: how far it carries them at the
                  active contribution rate (see helpers/contributionPeriod.js)
    exclude_id leaves out the transaction being edited, so editing one doesn't
@@ -91,7 +93,9 @@ router.get('/period-suggestion', async (req, res, next) => {
     const hasAmount = req.query.amount !== undefined && req.query.amount !== '';
     const amount = Number(req.query.amount);
     const excludeId = parseInt(req.query.exclude_id) || 0;
+    const enteredFrom = req.query.from_date || null;
     if (!memberId) return res.status(400).json({ message: 'member_id is required' });
+    if (enteredFrom && !/^\d{4}-\d{2}-\d{2}$/.test(enteredFrom)) return res.status(400).json({ message: 'from_date must be YYYY-MM-DD' });
     if (hasAmount && !(amount > 0)) return res.status(400).json({ message: 'amount must be greater than zero' });
 
     const [[member]] = await pool.query(
@@ -113,7 +117,8 @@ router.get('/period-suggestion', async (req, res, next) => {
 
     // ── Start date: needs only the member (the rate is just the last fallback)
     let fromDate = null, basis = null;
-    if (last?.last_to_date) { fromDate = dayAfter(last.last_to_date); basis = 'last_transaction'; }
+    if (enteredFrom) { fromDate = enteredFrom; basis = 'entered'; }
+    else if (last?.last_to_date) { fromDate = dayAfter(last.last_to_date); basis = 'last_transaction'; }
     else if (member.reg_date) { fromDate = member.reg_date; basis = 'reg_date'; }
     else if (rate) { fromDate = rate.start_date; basis = 'rate_start'; }
 

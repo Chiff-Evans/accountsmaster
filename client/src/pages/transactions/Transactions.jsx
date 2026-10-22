@@ -23,6 +23,7 @@ const BASIS_TEXT = {
   last_transaction: s => `last cover ended on (${fmtDate(s.last_to_date)})`,
   reg_date:         () => 'their registration date (no earlier cover)',
   rate_start:       () => "the active rate's start date (no earlier cover or reg date)",
+  entered:          () => 'date you entered',
 };
 
 export default function Transactions() {
@@ -51,6 +52,9 @@ export default function Transactions() {
   const [suggesting, setSuggesting] = useState(false);
   const suggestTimer = useRef(null);
   const suggestSeq = useRef(0);
+  // True once staff type their own From Date: recalculations then work from
+  // it instead of replacing it, until the member/type changes or it's cleared.
+  const fromEntered = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,6 +76,7 @@ export default function Transactions() {
   const resetSuggestion = () => {
     clearTimeout(suggestTimer.current);
     suggestSeq.current += 1; // drop any in-flight response
+    fromEntered.current = false;
     setSuggestion(null); setSuggesting(false);
   };
 
@@ -79,8 +84,9 @@ export default function Transactions() {
 
   const requestSuggestion = () => {
     clearTimeout(suggestTimer.current);
-    const { member_id, amount, transaction_type_id, is_migrated } =
-      form.getFieldsValue(['member_id', 'amount', 'transaction_type_id', 'is_migrated']);
+    const { member_id, amount, transaction_type_id, is_migrated, from_date } =
+      form.getFieldsValue(['member_id', 'amount', 'transaction_type_id', 'is_migrated', 'from_date']);
+    const enteredFrom = fromEntered.current && from_date ? from_date.format('YYYY-MM-DD') : undefined;
     // Only deposits buy cover; withdrawals and other types keep their dates as entered.
     // Migrated records are history keyed in as-is: nothing is calculated.
     // A member alone is enough for the From Date; the amount adds the To Date.
@@ -94,14 +100,15 @@ export default function Transactions() {
       setSuggesting(true);
       try {
         const { data } = await api.get('/transactions/period-suggestion', {
-          params: { member_id, amount: amount > 0 ? amount : undefined, exclude_id: editing?.id },
+          params: { member_id, amount: amount > 0 ? amount : undefined, exclude_id: editing?.id, from_date: enteredFrom },
         });
         if (seq !== suggestSeq.current) return;
         setSuggestion(data);
         // From Date whenever it could be worked out. To Date once an amount was
         // priced — and cleared while there's no amount, so a stale one can't linger.
         const next = {};
-        if (data.from_date) next.from_date = dayjs(data.from_date);
+        // A hand-typed From Date is the input here, never overwritten.
+        if (data.from_date && !enteredFrom) next.from_date = dayjs(data.from_date);
         if (!(amount > 0)) next.to_date = null;
         else if (data.available) next.to_date = data.to_date ? dayjs(data.to_date) : null;
         form.setFieldsValue(next);
@@ -260,7 +267,12 @@ export default function Transactions() {
           onValuesChange={changed => {
             // Ticking Is Migrated clears the working note and leaves the dates as typed;
             // unticking it goes back to calculating them.
-            if ('amount' in changed || 'member_id' in changed || 'transaction_type_id' in changed || 'is_migrated' in changed) {
+            // A different member or type means a different chain — back to the suggested start.
+            if ('member_id' in changed || 'transaction_type_id' in changed) fromEntered.current = false;
+            // Typing a From Date makes it the start; clearing it goes back to the suggestion.
+            if ('from_date' in changed) fromEntered.current = !!changed.from_date;
+            if ('amount' in changed || 'member_id' in changed || 'transaction_type_id' in changed
+                || 'is_migrated' in changed || 'from_date' in changed) {
               requestSuggestion();
             }
           }}
