@@ -281,15 +281,6 @@ export default function Transactions() {
             <Input readOnly value={fileNo || '—'} style={{ color: '#1677ff', fontWeight: 600, marginBottom: 20 }} />
           </LabelField>
 
-          <Form.Item
-            name="is_migrated"
-            valuePropName="checked"
-            extra="For records carried over from a previous system: enter the dates yourself — no automatic dates, rate or credit/arrears."
-            style={{ marginBottom: 20 }}
-          >
-            <Checkbox>Is Migrated</Checkbox>
-          </Form.Item>
-
           <LabelField label="Member" required>
             <Form.Item name="member_id" rules={[{ required: true, message: 'Member is required' }]} style={{ marginBottom: 20 }}>
               <Select showSearch optionFilterProp="label" placeholder="Select Member" options={memberOptions} />
@@ -406,6 +397,14 @@ export default function Transactions() {
               <Input.TextArea rows={4} />
             </Form.Item>
           </LabelField>
+                    <Form.Item
+            name="is_migrated"
+            valuePropName="checked"
+            extra="For records carried over from a previous system: enter the dates yourself — no automatic dates, rate or credit/arrears."
+            style={{ marginBottom: 20 }}
+          >
+            <Checkbox>Is Migrated</Checkbox>
+          </Form.Item>
         </Form>
       </Modal>
     </>
