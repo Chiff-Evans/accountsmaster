@@ -47,7 +47,7 @@ self.addEventListener('notificationclick', event => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      // If the portal is already open, navigate it to the order detail page.
+      // If the portal is already open, navigate it to the linked page.
       for (const client of list) {
         if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
           return client.navigate(target).then(c => c?.focus());

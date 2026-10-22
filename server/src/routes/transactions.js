@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { generateRefNo } = require('../helpers/refNumber');
 const { notify } = require('../helpers/notify');
+const { encodeId } = require('../utils/hashids');
 const { coverPeriod, unitOf, dayAfter } = require('../helpers/contributionPeriod');
 const { recalcMemberLedger, creditBroughtForwardCents, isDepositTypeId } = require('../helpers/contributionLedger');
 
@@ -275,11 +276,13 @@ router.post('/', canCreate, async (req, res, next) => {
     const tx = rows[0];
 
     // Let the member see it in their portal (bell + push, per their preferences).
+    // Tapping it opens this transaction's details — by hashed id, the only
+    // form the portal accepts in URLs.
     const amountText = Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 });
     await notify('member', tx.member_id, 'transaction_recorded', {
       title: `${tx.transaction_type_name || 'Transaction'} of KES ${amountText} recorded`,
       body: `${tx.file_no ? `${tx.file_no} · ` : ''}Dated ${tx.transaction_date}.`,
-      url: '/transactions',
+      url: `/transactions/${encodeId(tx.id)}`,
     });
 
     res.status(201).json(tx);
