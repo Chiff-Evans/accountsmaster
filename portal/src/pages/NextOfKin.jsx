@@ -22,7 +22,7 @@ export default function NextOfKin() {
     <div className="page-content">
       <Typography.Title level={5} style={{ margin: '0 0 4px' }}>My Next of Kin</Typography.Title>
       <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 14 }}>
-        To add or change next of kin, please contact the office.
+        To add or change next of kin, please contact management.
       </Typography.Text>
 
       {failed && <Alert type="error" showIcon message="Couldn't load next of kin." />}
