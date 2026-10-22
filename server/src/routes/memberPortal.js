@@ -356,6 +356,7 @@ router.get('/transactions/:id', async (req, res, next) => {
               DATE_FORMAT(t.transaction_date, '%Y-%m-%d') AS transaction_date,
               DATE_FORMAT(t.from_date, '%Y-%m-%d') AS from_date,
               DATE_FORMAT(t.to_date, '%Y-%m-%d') AS to_date,
+              t.rate_amount, t.rate_unit,
               t.credit_brought_forward, t.cover_value, t.credit_carried_forward,
               t.created_on, t.updated_on
        FROM transactions t

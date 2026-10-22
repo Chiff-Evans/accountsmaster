@@ -14,8 +14,8 @@ const CreditText = ({ value }) => {
   const v = Number(value || 0);
   if (Math.abs(v) < 0.005) return <span>{fmtAmount(0)}</span>;
   return v > 0
-    ? <span style={{ color: '#389e0d' }}>{fmtAmount(v)} credit</span>
-    : <span style={{ color: '#cf1322' }}>{fmtAmount(-v)} arrears</span>;
+    ? <span style={{ color: '#389e0d' }}>{fmtAmount(v)} </span>
+    : <span style={{ color: '#cf1322' }}>{fmtAmount(-v)} </span>;
 };
 
 // Where the suggested From Date came from (see /transactions/period-suggestion).
@@ -178,7 +178,7 @@ export default function Transactions() {
     { title: 'Date', dataIndex: 'transaction_date', key: 'date', mobileExpanded: true, render: fmtDate },
     { title: 'Credit C/F', dataIndex: 'credit_carried_forward', key: 'cf', align: 'right', mobileExpanded: true,
       render: v => v == null ? '—' : <CreditText value={v} /> },
-    { title: 'Other Details', dataIndex: 'other_details', key: 'other', mobileExpanded: true, ellipsis: true },
+    // { title: 'Other Details', dataIndex: 'other_details', key: 'other', mobileExpanded: true, ellipsis: true },
   ];
 
   const memberOptions = members.map(m => ({
@@ -338,14 +338,14 @@ export default function Transactions() {
               style={{ marginBottom: 20 }}
               message={suggestion.to_date
                 ? `Covers ${fmtUnits(suggestion.units)} × ${suggestion.rate.time_unit_name} (${suggestion.days_covered} days) at ${fmtAmount(suggestion.rate.amount)} each`
-                : 'No cover period — amount is below one day at the active rate'}
+                : `No cover yet — less than one full ${suggestion.rate.unit} (${fmtAmount(suggestion.rate.amount)})`}
               description={
                 <>
                   <div>Starts the {BASIS_TEXT[suggestion.basis]?.(suggestion)}.</div>
                   <div style={styles.ledger}>
                     <span>Amount</span><span>{fmtAmount(suggestion.available_amount - suggestion.credit_brought_forward)}</span>
                     <span>Brought forward</span><span><CreditText value={suggestion.credit_brought_forward} /></span>
-                    <span>Cover value ({suggestion.days_covered} days)</span><span>− {fmtAmount(suggestion.cover_value)}</span>
+                    <span>Cover value ({fmtUnits(suggestion.units)} × {suggestion.rate.unit})</span><span> {fmtAmount(suggestion.cover_value)}</span>
                     <strong>Carried forward</strong><strong><CreditText value={suggestion.credit_carried_forward} /></strong>
                   </div>
                   {suggestion.warnings?.map(w => <div key={w}>{w}</div>)}

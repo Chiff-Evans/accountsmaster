@@ -2,9 +2,11 @@ const { valueOfPeriodCents } = require('./contributionPeriod');
 
 /* Contribution credit ledger.
 
-   A deposit rarely buys an exact number of days, so the part of it that
-   doesn't make a whole day isn't lost — it's carried to the member's next
-   deposit as credit. Each deposit in the chain records:
+   Cover is bought in whole rate units (e.g. whole weeks at 1000/week), so a
+   deposit rarely spends exactly its amount. What's short of a full unit
+   isn't lost — it's carried to the member's next deposit as credit
+   (1500 at 1000/week = 1 week + 500 carried; a later 500 + that 500 buys
+   the next week). Each deposit in the chain records:
 
      credit_brought_forward = previous link's credit_carried_forward (0 first)
      cover_value            = value of its from..to days at its rate snapshot
@@ -13,13 +15,20 @@ const { valueOfPeriodCents } = require('./contributionPeriod');
    A positive carry-forward is credit; a negative one is arrears (cover was
    extended past what was paid), which the next deposit settles first.
 
-   The chain is a member's deposits that have a rate snapshot and both dates,
-   in cover order (from_date, then id). Any create / edit / delete can change
-   every later link, so the whole chain is recalculated each time — cheap
+   The chain is a member's deposits that have a rate snapshot, in cover
+   order (CHAIN_KEY, then id). A deposit too small for one unit has no To
+   Date — it covers nothing and its whole amount carries forward. Any
+   create / edit / delete can change every later link, so the whole chain
+   is recalculated each time — cheap
    (one member's rows) and it means stored balances can never drift. */
 
 const toCents = v => Math.round(Number(v || 0) * 100);
 const fromCents = c => (c / 100).toFixed(2);
+
+// One ordering for both recalculation and "what does the next deposit
+// inherit" — they must agree. Uncovered deposits have no to_date but still
+// sort by their start (or, failing that, their transaction date).
+const CHAIN_KEY = 'COALESCE(t.from_date, t.transaction_date)';
 
 // Is this transaction type a deposit? (Transaction Types parameter value name)
 async function isDepositTypeId(conn, typeId) {
@@ -39,15 +48,17 @@ async function recalcMemberLedger(conn, memberId) {
      JOIN parameter_values tt ON t.transaction_type_id = tt.id
      WHERE t.member_id = ? AND tt.paramater_value LIKE 'deposit%'
        AND t.rate_amount IS NOT NULL AND t.rate_unit IS NOT NULL
-       AND t.from_date IS NOT NULL AND t.to_date IS NOT NULL
-     ORDER BY t.from_date, t.id`,
+     ORDER BY ${CHAIN_KEY}, t.id`,
     [memberId]
   );
 
   let carried = 0; // cents
   for (const r of rows) {
     const broughtForward = carried;
-    const coverValue = valueOfPeriodCents(r.from_date, r.to_date, r.rate_amount, r.rate_unit);
+    // No cover dates = bought no unit; the whole amount carries forward.
+    const coverValue = r.from_date && r.to_date
+      ? valueOfPeriodCents(r.from_date, r.to_date, r.rate_amount, r.rate_unit)
+      : 0;
     carried = toCents(r.amount) + broughtForward - coverValue;
     await conn.query(
       `UPDATE transactions SET credit_brought_forward=?, cover_value=?, credit_carried_forward=? WHERE id=?`,
@@ -55,8 +66,8 @@ async function recalcMemberLedger(conn, memberId) {
     );
   }
 
-  // Anything no longer in the chain (type changed away from deposit, dates
-  // cleared, ...) must not keep stale balances.
+  // Anything no longer in the chain (type changed away from deposit, ...)
+  // must not keep stale balances.
   const ids = rows.map(r => r.id);
   await conn.query(
     `UPDATE transactions SET credit_brought_forward=NULL, cover_value=NULL, credit_carried_forward=NULL
@@ -73,7 +84,7 @@ async function creditBroughtForwardCents(conn, memberId, excludeId = 0) {
     `SELECT t.credit_carried_forward
      FROM transactions t
      WHERE t.member_id = ? AND t.id <> ? AND t.credit_carried_forward IS NOT NULL
-     ORDER BY t.from_date DESC, t.id DESC LIMIT 1`,
+     ORDER BY ${CHAIN_KEY} DESC, t.id DESC LIMIT 1`,
     [memberId, excludeId]
   );
   return toCents(row?.credit_carried_forward);

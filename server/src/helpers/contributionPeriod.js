@@ -2,10 +2,11 @@
    contribution rate (amount per time unit) carries a member's cover.
 
    All dates are 'YYYY-MM-DD' strings handled in UTC, so no timezone can
-   shift a day. Whole units are calendar-true (1 month from 31 Jan is
-   28/29 Feb, 1 year from 29 Feb is 28 Feb); a fractional unit becomes whole
-   days of the next unit (half a 30-day month = 15 days). Any remainder
-   smaller than a day is not carried. */
+   shift a day. Cover is bought in WHOLE rate units only (1000/week buys
+   whole weeks); whatever is short of a full unit is not turned into days —
+   it's carried forward as credit to the member's next deposit (see
+   contributionLedger.js). Units are calendar-true (1 month from 31 Jan is
+   28/29 Feb, 1 year from 29 Feb is 28 Feb). */
 
 const DAY_MS = 86400000;
 
@@ -42,38 +43,35 @@ function addUnits(dt, unit, n) {
   return addDays(dt, n); // day
 }
 
-/* Returns { to_date, units, days_covered } for `amount` paid at
-   `rateAmount` per `unit`, starting on `fromDate` (inclusive).
-   to_date is null when the amount buys less than one day. */
+/* What `amount` buys at `rateAmount` per `unit`, starting on `fromDate`
+   (inclusive): only whole units. Worked in cents so the remainder is exact.
+   Returns { to_date, units, days_covered, cover_cents, remainder_cents };
+   to_date is null when the amount is short of one full unit (it all
+   carries forward). */
 function coverPeriod(fromDate, amount, rateAmount, unit) {
-  const units = Number(amount) / Number(rateAmount);
-  const whole = Math.floor(units + 1e-9);
-  const frac = units - whole;
+  const amountCents = Math.round(Number(amount) * 100);
+  const rateCents = Math.round(Number(rateAmount) * 100);
+  const whole = amountCents > 0 && rateCents > 0 ? Math.floor(amountCents / rateCents) : 0;
 
   const start = parse(fromDate);
-  const afterWhole = addUnits(start, unit, whole);
-  let extraDays = 0;
-  if (frac > 1e-9) {
-    const unitDays = daysBetween(afterWhole, addUnits(afterWhole, unit, 1));
-    extraDays = Math.floor(frac * unitDays + 1e-9);
-  }
-  const endExclusive = addDays(afterWhole, extraDays);
-  const daysCovered = daysBetween(start, endExclusive);
+  const endExclusive = addUnits(start, unit, whole);
 
   return {
-    to_date: daysCovered > 0 ? fmt(addDays(endExclusive, -1)) : null,
-    units: Math.round(units * 10000) / 10000,
-    days_covered: daysCovered,
+    to_date: whole > 0 ? fmt(addDays(endExclusive, -1)) : null,
+    units: whole,
+    days_covered: daysBetween(start, endExclusive),
+    cover_cents: whole * rateCents,
+    remainder_cents: amountCents - whole * rateCents,
   };
 }
 
 const dayAfter = s => fmt(addDays(parse(s), 1));
 
 /* Value of covering fromDate..toDate (inclusive) at `rateAmount` per `unit`,
-   in CENTS — the exact inverse of coverPeriod: whole calendar units at the
-   full rate, then the leftover days at that next unit's daily share
-   (rate / days in that unit). Used to price what a deposit actually bought,
-   including dates staff adjusted by hand. */
+   in CENTS. For any period coverPeriod produces this is exactly
+   units × rate. If staff set dates by hand that aren't whole units, the
+   leftover days are priced at that unit's daily share (rate / days in the
+   unit), so a hand-extended cover shows up as arrears rather than free days. */
 function valueOfPeriodCents(fromDate, toDate, rateAmount, unit) {
   const start = parse(fromDate);
   const endExclusive = addDays(parse(toDate), 1);

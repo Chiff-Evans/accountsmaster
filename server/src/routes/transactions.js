@@ -3,7 +3,7 @@ const pool = require('../config/db');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { generateRefNo } = require('../helpers/refNumber');
 const { notify } = require('../helpers/notify');
-const { coverPeriod, unitOf, dayAfter, valueOfPeriodCents } = require('../helpers/contributionPeriod');
+const { coverPeriod, unitOf, dayAfter } = require('../helpers/contributionPeriod');
 const { recalcMemberLedger, creditBroughtForwardCents, isDepositTypeId } = require('../helpers/contributionLedger');
 
 router.use(authenticate);
@@ -90,16 +90,16 @@ router.get('/period-suggestion', async (req, res, next) => {
     const unit = unitOf(rate.time_unit_name);
     if (!unit) return res.json({ ...base, available: false, reason: `The active rate's time unit "${rate.time_unit_name}" isn't a year, month, week or day.` });
 
-    // The amount plus any credit brought forward buys the cover; whatever is
-    // too small for a whole day is carried forward to the next deposit.
+    // The amount plus any credit brought forward buys whole rate units; what's
+    // short of a full unit is carried forward to the next deposit.
     const availableCents = Math.round(amount * 100) + bfCents;
     const period = availableCents > 0
       ? coverPeriod(fromDate, availableCents / 100, rate.amount, unit)
-      : { to_date: null, units: 0, days_covered: 0 };
-    const usedCents = period.to_date ? valueOfPeriodCents(fromDate, period.to_date, rate.amount, unit) : 0;
+      : { to_date: null, units: 0, days_covered: 0, cover_cents: 0, remainder_cents: availableCents };
+    const usedCents = period.cover_cents;
     const warnings = [];
     if (availableCents <= 0) warnings.push(`This amount doesn't clear the member's arrears of ${(-bfCents / 100).toFixed(2)}.`);
-    else if (!period.to_date) warnings.push('This amount covers less than one day at the active rate.');
+    else if (!period.to_date) warnings.push(`Not enough for one full ${unit} (${Number(rate.amount).toFixed(2)}) — the whole ${(availableCents / 100).toFixed(2)} is carried forward to the next deposit.`);
     if (rate.end_date && period.to_date && period.to_date > rate.end_date) {
       warnings.push(`This runs past the active rate's end date (${rate.end_date}).`);
     }
@@ -189,10 +189,11 @@ function validate(body) {
 
 /* Which rate a deposit is priced at. A deposit keeps the rate it was first
    recorded with (so later rate changes never rewrite history); a new one,
-   or one that never had a snapshot, takes the active rate. Non-deposits and
-   deposits without both dates are outside the credit ledger. */
-async function rateSnapshotFor(conn, { transaction_type_id, from_date, to_date }, existing) {
-  const inLedger = from_date && to_date && await isDepositTypeId(conn, transaction_type_id);
+   or one that never had a snapshot, takes the active rate. Every deposit is
+   in the credit ledger — one too small for a unit has no To Date but still
+   carries its amount forward. Non-deposits are outside it. */
+async function rateSnapshotFor(conn, { transaction_type_id }, existing) {
+  const inLedger = await isDepositTypeId(conn, transaction_type_id);
   if (!inLedger) return { rate_id: null, rate_amount: null, rate_unit: null };
   if (existing?.rate_amount != null && existing?.rate_unit) {
     return { rate_id: existing.rate_id, rate_amount: existing.rate_amount, rate_unit: existing.rate_unit };

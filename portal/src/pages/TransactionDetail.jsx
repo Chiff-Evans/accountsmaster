@@ -13,6 +13,15 @@ const creditText = v => {
   return n > 0 ? `${money(n)} credit` : `${money(-n)} arrears`;
 };
 
+// Cover in the rate's own units, e.g. "1 week · KES 1,000.00".
+const coverText = tx => {
+  const rate = Number(tx.rate_amount);
+  const units = rate > 0 ? Math.round(Number(tx.cover_value) / rate * 100) / 100 : null;
+  if (units == null || !tx.rate_unit) return money(tx.cover_value);
+  if (units === 0) return 'None — not enough for a full ' + tx.rate_unit;
+  return `${units} ${tx.rate_unit}${units === 1 ? '' : 's'} · ${money(tx.cover_value)}`;
+};
+
 /* Full details of one of the member's own transactions. */
 export default function TransactionDetail() {
   const { id } = useParams();
@@ -67,7 +76,7 @@ export default function TransactionDetail() {
     ['Period',           days ? `${days} day${days === 1 ? '' : 's'}` : null],
     // Contribution credit: what didn't make a whole day carries to the next deposit.
     ['Brought Forward',  tx.credit_brought_forward != null ? creditText(tx.credit_brought_forward) : null],
-    ['Cover Value',      tx.cover_value != null ? money(tx.cover_value) : null],
+    ['Cover',            tx.cover_value != null ? coverText(tx) : null],
     ['Carried Forward',  tx.credit_carried_forward != null ? creditText(tx.credit_carried_forward) : null],
     ['Recorded On',      tx.created_on ? dayjs(tx.created_on).format('D MMM YYYY, HH:mm') : null],
     ['Last Updated',     edited ? dayjs(tx.updated_on).format('D MMM YYYY, HH:mm') : null],
