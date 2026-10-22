@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { App, Button, Modal } from 'antd';
+import { App, Button, Modal, Tooltip } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { usePwaInstall } from '../../hooks/usePwaInstall';
 import { CONFIG } from '../../config';
 
 /* "Install" — rendered only for people who haven't installed the portal as
    an app (see usePwaInstall); renders nothing otherwise.
-   `variant="header"` is the compact white-on-gradient look for the top bar. */
+   `variant="header"` is the compact, icon-only white-on-gradient look for
+   the top bar; the default shows the "Install" label (login page). */
 export default function InstallButton({ variant = 'default', block = false }) {
   const { canInstall, mode, install } = usePwaInstall();
   const { message } = App.useApp();
@@ -25,16 +26,25 @@ export default function InstallButton({ variant = 'default', block = false }) {
     color: '#fff', fontWeight: 600,
   };
 
+  // Top bar: icon only (tooltip + aria-label keep it understandable).
+  // Elsewhere (login page): icon + the word "Install".
+  const isHeader = variant === 'header';
+  const button = (
+    <Button
+      icon={<DownloadOutlined />}
+      onClick={onClick}
+      block={block}
+      size={isHeader ? 'small' : 'middle'}
+      aria-label={`Install ${CONFIG.appName}`}
+      style={isHeader ? headerStyle : { borderRadius: 8 }}
+    >
+      {isHeader ? null : 'Install'}
+    </Button>
+  );
+
   return (
     <>
-      <Button
-        icon={<DownloadOutlined />}
-        onClick={onClick}
-        block={block}
-        size={variant === 'header' ? 'small' : 'middle'}
-        style={variant === 'header' ? headerStyle : { borderRadius: 8 }}
-      >
-      </Button>
+      {isHeader ? <Tooltip title="Install app">{button}</Tooltip> : button}
 
       <Modal
         title={`Install ${CONFIG.appName}`}
