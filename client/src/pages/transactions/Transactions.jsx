@@ -176,6 +176,8 @@ export default function Transactions() {
     { title: 'From', dataIndex: 'from_date', key: 'from', mobileExpanded: true, render: fmtDate },
     { title: 'To', dataIndex: 'to_date', key: 'to', mobileExpanded: true, render: fmtDate },
     { title: 'Date', dataIndex: 'transaction_date', key: 'date', mobileExpanded: true, render: fmtDate },
+    { title: 'Rate', key: 'rate', align: 'right', mobileExpanded: true,
+      render: (_, r) => r.rate_amount != null ? `${fmtAmount(r.rate_amount)} / ${r.rate_unit}` : '—' },
     { title: 'Credit C/F', dataIndex: 'credit_carried_forward', key: 'cf', align: 'right', mobileExpanded: true,
       render: v => v == null ? '—' : <CreditText value={v} /> },
     // { title: 'Other Details', dataIndex: 'other_details', key: 'other', mobileExpanded: true, ellipsis: true },
@@ -342,6 +344,9 @@ export default function Transactions() {
               description={
                 <>
                   <div>Starts the {BASIS_TEXT[suggestion.basis]?.(suggestion)}.</div>
+                  {suggestion.rate.source === 'recorded' && (
+                    <div>Priced at this transaction's recorded rate ({fmtAmount(suggestion.rate.amount)} per {suggestion.rate.unit}), not the current active rate.</div>
+                  )}
                   <div style={styles.ledger}>
                     <span>Amount</span><span>{fmtAmount(suggestion.available_amount - suggestion.credit_brought_forward)}</span>
                     <span>Brought forward</span><span><CreditText value={suggestion.credit_brought_forward} /></span>

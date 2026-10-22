@@ -31,6 +31,48 @@ const LIST_SELECT = `
 
 const SEARCH_WHERE = `(t.file_no LIKE ? OR m.member_name LIKE ? OR m.member_ref_no LIKE ? OR t.other_details LIKE ?)`;
 
+/* ── Which contribution rate prices a transaction ──
+   A transaction that already recorded a rate (rate_id + its amount/unit
+   snapshot) keeps it for good — when it's edited, that same rate is used
+   even if another rate is active now, or the rate was since changed or
+   deleted. Anything else (a new transaction, or an old one recorded before
+   rates existed) uses the active rate. Shared by the dates preview and the
+   save so the two can never disagree.
+   Returns { id, amount, unit, time_unit_name, start_date, end_date, source }
+   (source 'recorded' | 'active') or null when there's no usable rate. */
+const RATE_SELECT = `
+  SELECT cr.id, cr.amount, tu.paramater_value AS time_unit_name,
+         DATE_FORMAT(cr.start_date, '%Y-%m-%d') AS start_date,
+         DATE_FORMAT(cr.end_date, '%Y-%m-%d')   AS end_date
+  FROM contribution_rates cr
+  LEFT JOIN parameter_values tu ON cr.time_unit_id = tu.id`;
+
+const UNIT_LABEL = { year: 'Year', month: 'Month', week: 'Week', day: 'Day' };
+
+async function rateForTransaction(conn, existing) {
+  if (existing && (existing.rate_id || existing.rate_amount != null)) {
+    const [[row]] = existing.rate_id
+      ? await conn.query(`${RATE_SELECT} WHERE cr.id = ?`, [existing.rate_id])
+      : [[null]];
+    // The snapshot is what was actually charged; the rate row (if it still
+    // exists) only supplies its name and dates for display.
+    const amount = existing.rate_amount != null ? Number(existing.rate_amount) : Number(row?.amount);
+    const unit = existing.rate_unit || unitOf(row?.time_unit_name);
+    if (amount > 0 && unit) {
+      return {
+        id: existing.rate_id || null, amount, unit,
+        time_unit_name: row?.time_unit_name || UNIT_LABEL[unit],
+        start_date: row?.start_date || null, end_date: row?.end_date || null,
+        source: 'recorded',
+      };
+    }
+  }
+  const [[active]] = await conn.query(`${RATE_SELECT} WHERE cr.is_active = 1 LIMIT 1`);
+  const unit = active && unitOf(active.time_unit_name);
+  if (!unit) return null;
+  return { ...active, amount: Number(active.amount), unit, source: 'active' };
+}
+
 /* ── Suggested From/To dates for a deposit ──
    GET /transactions/period-suggestion?member_id=[&amount=][&exclude_id=]
      from_date = day after the member's latest To Date on another transaction;
@@ -56,14 +98,11 @@ router.get('/period-suggestion', async (req, res, next) => {
     );
     if (!member) return res.status(404).json({ message: 'Member not found' });
 
-    const [[rate]] = await pool.query(
-      `SELECT cr.id, cr.amount, tu.paramater_value AS time_unit_name,
-              DATE_FORMAT(cr.start_date, '%Y-%m-%d') AS start_date,
-              DATE_FORMAT(cr.end_date, '%Y-%m-%d')   AS end_date
-       FROM contribution_rates cr
-       LEFT JOIN parameter_values tu ON cr.time_unit_id = tu.id
-       WHERE cr.is_active = 1 LIMIT 1`
-    );
+    // Editing (exclude_id): price with that transaction's own recorded rate.
+    const [[editingTx]] = excludeId
+      ? await pool.query('SELECT rate_id, rate_amount, rate_unit FROM transactions WHERE id = ?', [excludeId])
+      : [[null]];
+    const rate = await rateForTransaction(pool, editingTx);
     const [[last]] = await pool.query(
       `SELECT DATE_FORMAT(MAX(t.to_date), '%Y-%m-%d') AS last_to_date
        FROM transactions t
@@ -80,15 +119,14 @@ router.get('/period-suggestion', async (req, res, next) => {
     // Credit (or arrears, if negative) carried from the member's last deposit.
     const bfCents = await creditBroughtForwardCents(pool, memberId, excludeId);
     const base = { from_date: fromDate, basis, last_to_date: last?.last_to_date || null, credit_brought_forward: bfCents / 100 };
-    const NO_RATE = 'No active contribution rate — set one in Configurations → Contribution Rates.';
+    const NO_RATE = 'No usable active contribution rate — set one (with a year, month, week or day time unit) in Configurations → Contribution Rates.';
 
     if (!fromDate) return res.json({ ...base, available: false, reason: `This member has no earlier cover or registration date, and ${NO_RATE.charAt(0).toLowerCase()}${NO_RATE.slice(1)}` });
     if (!hasAmount) return res.json({ ...base, available: true, to_date: null });
 
     // ── End date: needs the amount and the active rate
     if (!rate) return res.json({ ...base, available: false, reason: NO_RATE });
-    const unit = unitOf(rate.time_unit_name);
-    if (!unit) return res.json({ ...base, available: false, reason: `The active rate's time unit "${rate.time_unit_name}" isn't a year, month, week or day.` });
+    const { unit } = rate;
 
     // The amount plus any credit brought forward buys whole rate units; what's
     // short of a full unit is carried forward to the next deposit.
@@ -113,8 +151,8 @@ router.get('/period-suggestion', async (req, res, next) => {
       available_amount: availableCents / 100,
       cover_value: usedCents / 100,
       credit_carried_forward: (availableCents - usedCents) / 100,
-      rate: { id: rate.id, amount: Number(rate.amount), time_unit_name: rate.time_unit_name, unit,
-              start_date: rate.start_date, end_date: rate.end_date },
+      rate: { id: rate.id, amount: rate.amount, time_unit_name: rate.time_unit_name, unit,
+              start_date: rate.start_date, end_date: rate.end_date, source: rate.source },
       warnings,
     });
   } catch (err) { next(err); }
@@ -187,26 +225,15 @@ function validate(body) {
   return null;
 }
 
-/* Which rate a deposit is priced at. A deposit keeps the rate it was first
-   recorded with (so later rate changes never rewrite history); a new one,
-   or one that never had a snapshot, takes the active rate. Every deposit is
-   in the credit ledger — one too small for a unit has no To Date but still
-   carries its amount forward. Non-deposits are outside it. */
+/* Which rate a deposit is priced at — see rateForTransaction: it keeps the
+   rate it was first recorded with; a new one takes the active rate. Every
+   deposit is in the credit ledger — one too small for a unit has no To Date
+   but still carries its amount forward. Non-deposits are outside it. */
 async function rateSnapshotFor(conn, { transaction_type_id }, existing) {
-  const inLedger = await isDepositTypeId(conn, transaction_type_id);
-  if (!inLedger) return { rate_id: null, rate_amount: null, rate_unit: null };
-  if (existing?.rate_amount != null && existing?.rate_unit) {
-    return { rate_id: existing.rate_id, rate_amount: existing.rate_amount, rate_unit: existing.rate_unit };
-  }
-  const [[rate]] = await conn.query(
-    `SELECT cr.id, cr.amount, tu.paramater_value AS time_unit_name
-     FROM contribution_rates cr LEFT JOIN parameter_values tu ON cr.time_unit_id = tu.id
-     WHERE cr.is_active = 1 LIMIT 1`
-  );
-  const unit = rate && unitOf(rate.time_unit_name);
-  return unit
-    ? { rate_id: rate.id, rate_amount: rate.amount, rate_unit: unit }
-    : { rate_id: null, rate_amount: null, rate_unit: null };
+  const none = { rate_id: null, rate_amount: null, rate_unit: null };
+  if (!await isDepositTypeId(conn, transaction_type_id)) return none;
+  const rate = await rateForTransaction(conn, existing);
+  return rate ? { rate_id: rate.id, rate_amount: rate.amount, rate_unit: rate.unit } : none;
 }
 
 // Run `work(conn)` in a DB transaction (ledger recalcs must commit with the write).
