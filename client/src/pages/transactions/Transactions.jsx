@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Space, message } from 'antd';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Space, Alert, message } from 'antd';
 import dayjs from 'dayjs';
 import CrudTable from '../../components/common/CrudTable';
 import LabelField from '../../components/common/LabelField';
@@ -7,6 +7,14 @@ import api from '../../api';
 
 const fmtAmount = v => v != null ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 const fmtDate = v => v ? dayjs(v).format('D MMM YYYY') : '—';
+const fmtUnits = n => Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+// Where the suggested From Date came from (see /transactions/period-suggestion).
+const BASIS_TEXT = {
+  last_transaction: s => `last cover ended on (${fmtDate(s.last_to_date)})`,
+  reg_date:         () => 'their registration date (no earlier cover)',
+  rate_start:       () => "the active rate's start date (no earlier cover or reg date)",
+};
 
 export default function Transactions() {
   const [data, setData] = useState([]);
@@ -28,6 +36,13 @@ export default function Transactions() {
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
 
+  // Auto From/To dates for deposits, from the member's last cover + the
+  // active contribution rate. Debounced; a newer request wins over older ones.
+  const [suggestion, setSuggestion] = useState(null);  // API response, or { error }
+  const [suggesting, setSuggesting] = useState(false);
+  const suggestTimer = useRef(null);
+  const suggestSeq = useRef(0);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -45,8 +60,55 @@ export default function Transactions() {
     api.get('/parameters/values', { params: { text_id: 'transaction-types' } }).then(r => setTransactionTypes(r.data));
   }, []);
 
+  const resetSuggestion = () => {
+    clearTimeout(suggestTimer.current);
+    suggestSeq.current += 1; // drop any in-flight response
+    setSuggestion(null); setSuggesting(false);
+  };
+
+  const isDepositType = typeId => /^deposit/i.test(transactionTypes.find(t => t.id === typeId)?.paramater_value || '');
+
+  const requestSuggestion = () => {
+    clearTimeout(suggestTimer.current);
+    const { member_id, amount, transaction_type_id } = form.getFieldsValue(['member_id', 'amount', 'transaction_type_id']);
+    // Only deposits buy cover; withdrawals and other types keep their dates as entered.
+    // A member alone is enough for the From Date; the amount adds the To Date.
+    if (!member_id || !isDepositType(transaction_type_id)) {
+      suggestSeq.current += 1;
+      setSuggestion(null); setSuggesting(false);
+      return;
+    }
+    suggestTimer.current = setTimeout(async () => {
+      const seq = ++suggestSeq.current;
+      setSuggesting(true);
+      try {
+        const { data } = await api.get('/transactions/period-suggestion', {
+          params: { member_id, amount: amount > 0 ? amount : undefined, exclude_id: editing?.id },
+        });
+        if (seq !== suggestSeq.current) return;
+        setSuggestion(data);
+        // From Date whenever it could be worked out. To Date once an amount was
+        // priced — and cleared while there's no amount, so a stale one can't linger.
+        const next = {};
+        if (data.from_date) next.from_date = dayjs(data.from_date);
+        if (!(amount > 0)) next.to_date = null;
+        else if (data.available) next.to_date = data.to_date ? dayjs(data.to_date) : null;
+        form.setFieldsValue(next);
+        if ('to_date' in next || 'from_date' in next) form.validateFields(['to_date']).catch(() => {});
+      } catch (err) {
+        if (seq === suggestSeq.current) setSuggestion({ error: err.response?.data?.message || 'Could not work out the dates' });
+      } finally {
+        if (seq === suggestSeq.current) setSuggesting(false);
+      }
+    }, 400);
+  };
+
+  // Clean up a pending timer if the page unmounts mid-debounce.
+  useEffect(() => () => clearTimeout(suggestTimer.current), []);
+
   const openAdd = async () => {
     setEditing(null);
+    resetSuggestion();
     form.resetFields();
     // Prefill today's date and whichever Transaction Type staff have marked as default.
     form.setFieldsValue({
@@ -62,6 +124,7 @@ export default function Transactions() {
 
   const openEdit = r => {
     setEditing(r);
+    resetSuggestion();
     setFileNo(r.file_no);
     form.setFieldsValue({
       member_id: r.member_id,
@@ -162,13 +225,19 @@ export default function Transactions() {
         title={editing ? 'Edit Transaction' : 'Record Transaction'}
         open={open}
         onOk={onSave}
-        onCancel={() => setOpen(false)}
+        onCancel={() => { resetSuggestion(); setOpen(false); }}
         confirmLoading={saving}
         width={560}
         centered
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto', paddingTop: 8, paddingRight: 8 } }}
       >
-        <Form form={form} layout="vertical">
+        <Form
+          form={form}
+          layout="vertical"
+          onValuesChange={changed => {
+            if ('amount' in changed || 'member_id' in changed || 'transaction_type_id' in changed) requestSuggestion();
+          }}
+        >
           <LabelField label="File No">
             <Input readOnly value={fileNo || '—'} style={{ color: '#1677ff', fontWeight: 600, marginBottom: 20 }} />
           </LabelField>
@@ -220,6 +289,47 @@ export default function Transactions() {
               <DatePicker style={{ width: '100%' }} format="D MMM YYYY" />
             </Form.Item>
           </LabelField>
+
+          {/* How the From/To dates were worked out (deposits only) */}
+          {suggesting && <Alert type="info" showIcon message="Working out the cover period…" style={{ marginBottom: 20 }} />}
+          {!suggesting && suggestion?.error && (
+            <Alert type="error" showIcon message={suggestion.error} style={{ marginBottom: 20 }} />
+          )}
+          {!suggesting && suggestion && !suggestion.error && !suggestion.available && (
+            <Alert
+              type="warning"
+              showIcon
+              message={suggestion.from_date ? `Starts ${fmtDate(suggestion.from_date)} — To Date not calculated` : 'Dates not calculated'}
+              description={suggestion.reason}
+              style={{ marginBottom: 20 }}
+            />
+          )}
+          {!suggesting && suggestion?.available && !suggestion.rate && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 20 }}
+              message={`Starts ${fmtDate(suggestion.from_date)} — the ${BASIS_TEXT[suggestion.basis]?.(suggestion)}`}
+              description="Enter the amount to work out the To Date."
+            />
+          )}
+          {!suggesting && suggestion?.available && suggestion.rate && (
+            <Alert
+              type={suggestion.warnings?.length ? 'warning' : 'success'}
+              showIcon
+              style={{ marginBottom: 20 }}
+              message={suggestion.to_date
+                ? `Covers ${fmtUnits(suggestion.units)} × ${suggestion.rate.time_unit_name} (${suggestion.days_covered} days) at ${fmtAmount(suggestion.rate.amount)} each`
+                : 'No cover period — amount is below one day at the active rate'}
+              description={
+                <>
+                  <div>Starts the {BASIS_TEXT[suggestion.basis]?.(suggestion)}.</div>
+                  {suggestion.warnings?.map(w => <div key={w}>{w}</div>)}
+                  <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2 }}>You can still adjust the dates.</div>
+                </>
+              }
+            />
+          )}
 
           <LabelField label="Transaction Date" required>
             <Form.Item name="transaction_date" rules={[{ required: true, message: 'Transaction date is required' }]} style={{ marginBottom: 20 }}>

@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { generateRefNo } = require('../helpers/refNumber');
 const { notify } = require('../helpers/notify');
+const { coverPeriod, unitOf, dayAfter } = require('../helpers/contributionPeriod');
 
 router.use(authenticate);
 
@@ -26,6 +27,83 @@ const LIST_SELECT = `
 `;
 
 const SEARCH_WHERE = `(t.file_no LIKE ? OR m.member_name LIKE ? OR m.member_ref_no LIKE ? OR t.other_details LIKE ?)`;
+
+/* ── Suggested From/To dates for a deposit ──
+   GET /transactions/period-suggestion?member_id=[&amount=][&exclude_id=]
+     from_date = day after the member's latest To Date on another transaction;
+                 with none yet, their Reg Date, else the active rate's start.
+                 Needs only the member, so the form can fill it on selection.
+     to_date   = only when `amount` is given: how far it carries them at the
+                 active contribution rate (see helpers/contributionPeriod.js)
+   exclude_id leaves out the transaction being edited, so editing one doesn't
+   chain off itself. Always 200 with `available: false` + `reason` when a
+   date can't be worked out (from_date is still returned when it could be),
+   so the form can say why instead of erroring. */
+router.get('/period-suggestion', async (req, res, next) => {
+  try {
+    const memberId = parseInt(req.query.member_id);
+    const hasAmount = req.query.amount !== undefined && req.query.amount !== '';
+    const amount = Number(req.query.amount);
+    const excludeId = parseInt(req.query.exclude_id) || 0;
+    if (!memberId) return res.status(400).json({ message: 'member_id is required' });
+    if (hasAmount && !(amount > 0)) return res.status(400).json({ message: 'amount must be greater than zero' });
+
+    const [[member]] = await pool.query(
+      `SELECT DATE_FORMAT(reg_date, '%Y-%m-%d') AS reg_date FROM members WHERE id = ?`, [memberId]
+    );
+    if (!member) return res.status(404).json({ message: 'Member not found' });
+
+    const [[rate]] = await pool.query(
+      `SELECT cr.id, cr.amount, tu.paramater_value AS time_unit_name,
+              DATE_FORMAT(cr.start_date, '%Y-%m-%d') AS start_date,
+              DATE_FORMAT(cr.end_date, '%Y-%m-%d')   AS end_date
+       FROM contribution_rates cr
+       LEFT JOIN parameter_values tu ON cr.time_unit_id = tu.id
+       WHERE cr.is_active = 1 LIMIT 1`
+    );
+    const [[last]] = await pool.query(
+      `SELECT DATE_FORMAT(MAX(t.to_date), '%Y-%m-%d') AS last_to_date
+       FROM transactions t
+       WHERE t.member_id = ? AND t.to_date IS NOT NULL AND t.id <> ?`,
+      [memberId, excludeId]
+    );
+
+    // ── Start date: needs only the member (the rate is just the last fallback)
+    let fromDate = null, basis = null;
+    if (last?.last_to_date) { fromDate = dayAfter(last.last_to_date); basis = 'last_transaction'; }
+    else if (member.reg_date) { fromDate = member.reg_date; basis = 'reg_date'; }
+    else if (rate) { fromDate = rate.start_date; basis = 'rate_start'; }
+
+    const base = { from_date: fromDate, basis, last_to_date: last?.last_to_date || null };
+    const NO_RATE = 'No active contribution rate — set one in Configurations → Contribution Rates.';
+
+    if (!fromDate) return res.json({ ...base, available: false, reason: `This member has no earlier cover or registration date, and ${NO_RATE.charAt(0).toLowerCase()}${NO_RATE.slice(1)}` });
+    if (!hasAmount) return res.json({ ...base, available: true, to_date: null });
+
+    // ── End date: needs the amount and the active rate
+    if (!rate) return res.json({ ...base, available: false, reason: NO_RATE });
+    const unit = unitOf(rate.time_unit_name);
+    if (!unit) return res.json({ ...base, available: false, reason: `The active rate's time unit "${rate.time_unit_name}" isn't a year, month, week or day.` });
+
+    const period = coverPeriod(fromDate, amount, rate.amount, unit);
+    const warnings = [];
+    if (!period.to_date) warnings.push('This amount covers less than one day at the active rate.');
+    if (rate.end_date && period.to_date && period.to_date > rate.end_date) {
+      warnings.push(`This runs past the active rate's end date (${rate.end_date}).`);
+    }
+
+    res.json({
+      ...base,
+      available: true,
+      to_date: period.to_date,
+      units: period.units,
+      days_covered: period.days_covered,
+      rate: { id: rate.id, amount: Number(rate.amount), time_unit_name: rate.time_unit_name, unit,
+              start_date: rate.start_date, end_date: rate.end_date },
+      warnings,
+    });
+  } catch (err) { next(err); }
+});
 
 /* ── Preview the next file_no without consuming the serial ── */
 router.get('/next-no', async (req, res, next) => {
