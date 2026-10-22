@@ -322,8 +322,10 @@ router.get('/transactions', async (req, res, next) => {
     const typeFilter = req.query.transaction_type_id ? 'AND t.transaction_type_id = ?' : '';
     const typeParam  = req.query.transaction_type_id ? [req.query.transaction_type_id] : [];
 
+    // The list is a summary — Other Details is only sent with a single
+    // transaction (GET /transactions/:id), shown on its details page.
     const [rows] = await pool.query(
-      `SELECT t.id, t.file_no, t.amount, t.other_details, t.transaction_type_id,
+      `SELECT t.id, t.file_no, t.amount, t.transaction_type_id,
               tt.paramater_value AS transaction_type_name,
               DATE_FORMAT(t.transaction_date, '%Y-%m-%d') AS transaction_date,
               DATE_FORMAT(t.from_date, '%Y-%m-%d') AS from_date,
