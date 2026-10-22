@@ -42,7 +42,7 @@ export default function Dashboard() {
       <div style={styles.targetCard}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <AimOutlined style={{ color: '#13c2c2', fontSize: 16 }} />
-          <Typography.Text strong>Target</Typography.Text>
+          <Typography.Text strong>Target Date</Typography.Text>
           {target && <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>by {fmtDate(target.target_date)}</Typography.Text>}
         </div>
 

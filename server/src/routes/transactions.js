@@ -108,10 +108,14 @@ router.get('/period-suggestion', async (req, res, next) => {
       ? await pool.query('SELECT rate_id, rate_amount, rate_unit FROM transactions WHERE id = ?', [excludeId])
       : [[null]];
     const rate = await rateForTransaction(pool, editingTx);
+    // Cover is only bought by deposits — a withdrawal's dates (legacy
+    // withdrawals carry the period they refund) must not move the start.
     const [[last]] = await pool.query(
       `SELECT DATE_FORMAT(MAX(t.to_date), '%Y-%m-%d') AS last_to_date
        FROM transactions t
-       WHERE t.member_id = ? AND t.to_date IS NOT NULL AND t.id <> ?`,
+       JOIN parameter_values tt ON t.transaction_type_id = tt.id
+       WHERE t.member_id = ? AND t.to_date IS NOT NULL AND t.id <> ?
+         AND tt.paramater_value LIKE 'deposit%'`,
       [memberId, excludeId]
     );
 
