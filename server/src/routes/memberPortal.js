@@ -8,6 +8,18 @@ const { notifyAdmins, mountNotificationRoutes } = require('../helpers/notify');
 const { mountPushRoutes } = require('../utils/pushNotify');
 const { sendVerificationCode, verifyCode, isEmailVerified } = require('../helpers/emailVerification');
 const { depositSum, withdrawalSum } = require('../helpers/transactionTypes');
+const { encodeId, decodeId } = require('../utils/hashids');
+
+/* Record ids leave the portal API hashed (e.g. /transactions/Xk3pQa), so
+   members never see raw, guessable database ids in URLs or responses. Only
+   the canonical hash is accepted back — padded/alternate spellings that
+   decode to the same number are rejected. Ownership is still enforced by
+   every query (member_id = req.member.id); the hash is not the access check. */
+const withHashedId = row => ({ ...row, id: encodeId(row.id) });
+const decodeHashedId = hash => {
+  const id = decodeId(hash);
+  return id && encodeId(id) === String(hash) ? id : null;
+};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -327,15 +339,17 @@ router.get('/transactions', async (req, res, next) => {
       `SELECT COUNT(*) AS total FROM transactions t WHERE t.member_id = ? ${typeFilter}`,
       [req.member.id, ...typeParam]
     );
-    res.json({ data: rows, total, page, limit });
+    res.json({ data: rows.map(withHashedId), total, page, limit });
   } catch (err) { next(err); }
 });
 
 /* GET /api/member-portal/transactions/:id — one of the member's own
-   transactions in full. Scoped to req.member.id, so another member's id
-   is a 404, not a leak. */
+   transactions in full, by hashed id. Scoped to req.member.id, so another
+   member's transaction is a 404, not a leak. */
 router.get('/transactions/:id', async (req, res, next) => {
   try {
+    const id = decodeHashedId(req.params.id);
+    if (!id) return res.status(404).json({ message: 'Transaction not found' });
     const [[tx]] = await pool.query(
       `SELECT t.id, t.file_no, t.amount, t.other_details, t.transaction_type_id,
               tt.paramater_value AS transaction_type_name,
@@ -346,10 +360,10 @@ router.get('/transactions/:id', async (req, res, next) => {
        FROM transactions t
        LEFT JOIN parameter_values tt ON t.transaction_type_id = tt.id
        WHERE t.id = ? AND t.member_id = ?`,
-      [req.params.id, req.member.id]
+      [id, req.member.id]
     );
     if (!tx) return res.status(404).json({ message: 'Transaction not found' });
-    res.json(tx);
+    res.json(withHashedId(tx));
   } catch (err) { next(err); }
 });
 
@@ -365,7 +379,7 @@ router.get('/next-of-kin', async (req, res, next) => {
        ORDER BY k.id`,
       [req.member.id]
     );
-    res.json(rows);
+    res.json(rows.map(withHashedId));
   } catch (err) { next(err); }
 });
 

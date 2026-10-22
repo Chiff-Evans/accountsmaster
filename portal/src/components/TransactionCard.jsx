@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { money, fmtDate, typeTone } from '../utils/format';
 
 /* One of the member's transactions, as a compact card (Home + Transactions).
-   Tapping it opens the full details page. */
+   Tapping it opens the full details page. `tx.id` is the hashed id the
+   portal API hands out (never the raw database id), so the URL is too. */
 export default function TransactionCard({ tx }) {
   const navigate = useNavigate();
   const tone = typeTone(tx.transaction_type_name);
