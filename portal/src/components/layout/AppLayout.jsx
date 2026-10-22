@@ -4,6 +4,7 @@ import { HomeOutlined, SwapOutlined, TeamOutlined, UserOutlined } from '@ant-des
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import NotificationBell from '../common/NotificationBell';
+import InstallButton from '../common/InstallButton';
 
 const NAV = [
   { path: '/dashboard',    icon: HomeOutlined, label: 'Home' },
@@ -52,6 +53,7 @@ export default function AppLayout({ children }) {
 
           {/* Notifications + Profile avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <InstallButton variant="header" />
           <NotificationBell api={api} />
           <button
             onClick={() => navigate('/profile')}

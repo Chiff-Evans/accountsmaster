@@ -8,6 +8,7 @@ import api from '../../api';
 import { CONFIG } from '../../config';
 import { hashPassword } from '../../utils/crypto';
 import { initials } from '../../utils/initials';
+import InstallButton from '../../components/common/InstallButton';
 
 export default function Login() {
   const { login } = useAuth();
@@ -88,6 +89,11 @@ export default function Login() {
             Log In
           </Button>
         </Form>
+
+        {/* Only shows for people who haven't installed the portal as an app */}
+        <div style={{ marginTop: 12 }}>
+          <InstallButton block />
+        </div>
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>
           {/* <Typography.Text type="secondary">Not registered yet? </Typography.Text>
