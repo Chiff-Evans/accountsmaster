@@ -69,4 +69,30 @@ function coverPeriod(fromDate, amount, rateAmount, unit) {
 
 const dayAfter = s => fmt(addDays(parse(s), 1));
 
-module.exports = { coverPeriod, unitOf, dayAfter };
+/* Value of covering fromDate..toDate (inclusive) at `rateAmount` per `unit`,
+   in CENTS — the exact inverse of coverPeriod: whole calendar units at the
+   full rate, then the leftover days at that next unit's daily share
+   (rate / days in that unit). Used to price what a deposit actually bought,
+   including dates staff adjusted by hand. */
+function valueOfPeriodCents(fromDate, toDate, rateAmount, unit) {
+  const start = parse(fromDate);
+  const endExclusive = addDays(parse(toDate), 1);
+  if (endExclusive <= start) return 0;
+  const rateCents = Math.round(Number(rateAmount) * 100);
+
+  // Whole units: arithmetic for fixed-length units, stepping for calendar ones.
+  let whole;
+  const totalDays = daysBetween(start, endExclusive);
+  if (unit === 'day') whole = totalDays;
+  else if (unit === 'week') whole = Math.floor(totalDays / 7);
+  else {
+    whole = 0;
+    while (addUnits(start, unit, whole + 1) <= endExclusive) whole++;
+  }
+  const afterWhole = addUnits(start, unit, whole);
+  const leftoverDays = daysBetween(afterWhole, endExclusive);
+  const unitDays = daysBetween(afterWhole, addUnits(afterWhole, unit, 1));
+  return whole * rateCents + Math.round((leftoverDays * rateCents) / unitDays);
+}
+
+module.exports = { coverPeriod, unitOf, dayAfter, valueOfPeriodCents };

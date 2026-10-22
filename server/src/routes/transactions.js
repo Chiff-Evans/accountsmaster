@@ -3,7 +3,8 @@ const pool = require('../config/db');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { generateRefNo } = require('../helpers/refNumber');
 const { notify } = require('../helpers/notify');
-const { coverPeriod, unitOf, dayAfter } = require('../helpers/contributionPeriod');
+const { coverPeriod, unitOf, dayAfter, valueOfPeriodCents } = require('../helpers/contributionPeriod');
+const { recalcMemberLedger, creditBroughtForwardCents, isDepositTypeId } = require('../helpers/contributionLedger');
 
 router.use(authenticate);
 
@@ -18,6 +19,8 @@ const LIST_SELECT = `
          DATE_FORMAT(t.from_date, '%Y-%m-%d')        AS from_date,
          DATE_FORMAT(t.to_date, '%Y-%m-%d')          AS to_date,
          DATE_FORMAT(t.transaction_date, '%Y-%m-%d') AS transaction_date,
+         t.rate_id, t.rate_amount, t.rate_unit,
+         t.credit_brought_forward, t.cover_value, t.credit_carried_forward,
          t.created_on, t.updated_on,
          m.member_name, m.member_ref_no,
          tt.paramater_value AS transaction_type_name
@@ -74,7 +77,9 @@ router.get('/period-suggestion', async (req, res, next) => {
     else if (member.reg_date) { fromDate = member.reg_date; basis = 'reg_date'; }
     else if (rate) { fromDate = rate.start_date; basis = 'rate_start'; }
 
-    const base = { from_date: fromDate, basis, last_to_date: last?.last_to_date || null };
+    // Credit (or arrears, if negative) carried from the member's last deposit.
+    const bfCents = await creditBroughtForwardCents(pool, memberId, excludeId);
+    const base = { from_date: fromDate, basis, last_to_date: last?.last_to_date || null, credit_brought_forward: bfCents / 100 };
     const NO_RATE = 'No active contribution rate — set one in Configurations → Contribution Rates.';
 
     if (!fromDate) return res.json({ ...base, available: false, reason: `This member has no earlier cover or registration date, and ${NO_RATE.charAt(0).toLowerCase()}${NO_RATE.slice(1)}` });
@@ -85,9 +90,16 @@ router.get('/period-suggestion', async (req, res, next) => {
     const unit = unitOf(rate.time_unit_name);
     if (!unit) return res.json({ ...base, available: false, reason: `The active rate's time unit "${rate.time_unit_name}" isn't a year, month, week or day.` });
 
-    const period = coverPeriod(fromDate, amount, rate.amount, unit);
+    // The amount plus any credit brought forward buys the cover; whatever is
+    // too small for a whole day is carried forward to the next deposit.
+    const availableCents = Math.round(amount * 100) + bfCents;
+    const period = availableCents > 0
+      ? coverPeriod(fromDate, availableCents / 100, rate.amount, unit)
+      : { to_date: null, units: 0, days_covered: 0 };
+    const usedCents = period.to_date ? valueOfPeriodCents(fromDate, period.to_date, rate.amount, unit) : 0;
     const warnings = [];
-    if (!period.to_date) warnings.push('This amount covers less than one day at the active rate.');
+    if (availableCents <= 0) warnings.push(`This amount doesn't clear the member's arrears of ${(-bfCents / 100).toFixed(2)}.`);
+    else if (!period.to_date) warnings.push('This amount covers less than one day at the active rate.');
     if (rate.end_date && period.to_date && period.to_date > rate.end_date) {
       warnings.push(`This runs past the active rate's end date (${rate.end_date}).`);
     }
@@ -98,6 +110,9 @@ router.get('/period-suggestion', async (req, res, next) => {
       to_date: period.to_date,
       units: period.units,
       days_covered: period.days_covered,
+      available_amount: availableCents / 100,
+      cover_value: usedCents / 100,
+      credit_carried_forward: (availableCents - usedCents) / 100,
       rate: { id: rate.id, amount: Number(rate.amount), time_unit_name: rate.time_unit_name, unit,
               start_date: rate.start_date, end_date: rate.end_date },
       warnings,
@@ -172,6 +187,41 @@ function validate(body) {
   return null;
 }
 
+/* Which rate a deposit is priced at. A deposit keeps the rate it was first
+   recorded with (so later rate changes never rewrite history); a new one,
+   or one that never had a snapshot, takes the active rate. Non-deposits and
+   deposits without both dates are outside the credit ledger. */
+async function rateSnapshotFor(conn, { transaction_type_id, from_date, to_date }, existing) {
+  const inLedger = from_date && to_date && await isDepositTypeId(conn, transaction_type_id);
+  if (!inLedger) return { rate_id: null, rate_amount: null, rate_unit: null };
+  if (existing?.rate_amount != null && existing?.rate_unit) {
+    return { rate_id: existing.rate_id, rate_amount: existing.rate_amount, rate_unit: existing.rate_unit };
+  }
+  const [[rate]] = await conn.query(
+    `SELECT cr.id, cr.amount, tu.paramater_value AS time_unit_name
+     FROM contribution_rates cr LEFT JOIN parameter_values tu ON cr.time_unit_id = tu.id
+     WHERE cr.is_active = 1 LIMIT 1`
+  );
+  const unit = rate && unitOf(rate.time_unit_name);
+  return unit
+    ? { rate_id: rate.id, rate_amount: rate.amount, rate_unit: unit }
+    : { rate_id: null, rate_amount: null, rate_unit: null };
+}
+
+// Run `work(conn)` in a DB transaction (ledger recalcs must commit with the write).
+async function inTransaction(work) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await work(conn);
+    await conn.commit();
+    return result;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally { conn.release(); }
+}
+
 router.post('/', canCreate, async (req, res, next) => {
   try {
     const error = validate(req.body);
@@ -179,14 +229,21 @@ router.post('/', canCreate, async (req, res, next) => {
     const { member_id, transaction_type_id, amount, from_date, to_date, transaction_date, other_details } = req.body;
 
     const file_no = await generateRefNo('transaction_creation');
-    const [result] = await pool.query(
-      `INSERT INTO transactions
-         (file_no, member_id, transaction_type_id, amount, from_date, to_date, transaction_date, other_details, created_by)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [file_no, member_id, transaction_type_id || null, amount, from_date || null, to_date || null,
-       transaction_date, other_details || null, req.user.id]
-    );
-    const [rows] = await pool.query(`${LIST_SELECT} WHERE t.id=?`, [result.insertId]);
+    const insertId = await inTransaction(async conn => {
+      const snap = await rateSnapshotFor(conn, req.body, null);
+      const [result] = await conn.query(
+        `INSERT INTO transactions
+           (file_no, member_id, transaction_type_id, amount, from_date, to_date,
+            rate_id, rate_amount, rate_unit, transaction_date, other_details, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [file_no, member_id, transaction_type_id || null, amount, from_date || null, to_date || null,
+         snap.rate_id, snap.rate_amount, snap.rate_unit, transaction_date, other_details || null, req.user.id]
+      );
+      await recalcMemberLedger(conn, member_id);
+      return result.insertId;
+    });
+
+    const [rows] = await pool.query(`${LIST_SELECT} WHERE t.id=?`, [insertId]);
     const tx = rows[0];
 
     // Let the member see it in their portal (bell + push, per their preferences).
@@ -207,15 +264,28 @@ router.put('/:id', canEdit, async (req, res, next) => {
     if (error) return res.status(400).json({ message: error });
     const { member_id, transaction_type_id, amount, from_date, to_date, transaction_date, other_details } = req.body;
 
-    const [result] = await pool.query(
-      `UPDATE transactions SET
-         member_id=?, transaction_type_id=?, amount=?, from_date=?, to_date=?, transaction_date=?,
-         other_details=?, updated_by=?
-       WHERE id=?`,
-      [member_id, transaction_type_id || null, amount, from_date || null, to_date || null,
-       transaction_date, other_details || null, req.user.id, req.params.id]
-    );
-    if (!result.affectedRows) return res.status(404).json({ message: 'Not found' });
+    const found = await inTransaction(async conn => {
+      const [[existing]] = await conn.query(
+        'SELECT id, member_id, rate_id, rate_amount, rate_unit FROM transactions WHERE id=? FOR UPDATE', [req.params.id]
+      );
+      if (!existing) return false;
+      const snap = await rateSnapshotFor(conn, req.body, existing);
+      await conn.query(
+        `UPDATE transactions SET
+           member_id=?, transaction_type_id=?, amount=?, from_date=?, to_date=?,
+           rate_id=?, rate_amount=?, rate_unit=?, transaction_date=?, other_details=?, updated_by=?
+         WHERE id=?`,
+        [member_id, transaction_type_id || null, amount, from_date || null, to_date || null,
+         snap.rate_id, snap.rate_amount, snap.rate_unit, transaction_date, other_details || null, req.user.id,
+         req.params.id]
+      );
+      // Moving a transaction to another member changes both members' chains.
+      await recalcMemberLedger(conn, member_id);
+      if (Number(existing.member_id) !== Number(member_id)) await recalcMemberLedger(conn, existing.member_id);
+      return true;
+    });
+    if (!found) return res.status(404).json({ message: 'Not found' });
+
     const [rows] = await pool.query(`${LIST_SELECT} WHERE t.id=?`, [req.params.id]);
     res.json(rows[0]);
   } catch (err) { next(err); }
@@ -223,7 +293,11 @@ router.put('/:id', canEdit, async (req, res, next) => {
 
 router.delete('/:id', canDelete, async (req, res, next) => {
   try {
-    await pool.query('DELETE FROM transactions WHERE id=?', [req.params.id]);
+    await inTransaction(async conn => {
+      const [[existing]] = await conn.query('SELECT member_id FROM transactions WHERE id=? FOR UPDATE', [req.params.id]);
+      await conn.query('DELETE FROM transactions WHERE id=?', [req.params.id]);
+      if (existing) await recalcMemberLedger(conn, existing.member_id);
+    });
     res.json({ message: 'Deleted' });
   } catch (err) { next(err); }
 });

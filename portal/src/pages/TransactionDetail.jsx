@@ -6,6 +6,13 @@ import dayjs from 'dayjs';
 import api from '../api';
 import { money, fmtDate, typeTone } from '../utils/format';
 
+// Positive = credit towards the next deposit, negative = arrears to clear.
+const creditText = v => {
+  const n = Number(v || 0);
+  if (Math.abs(n) < 0.005) return money(0);
+  return n > 0 ? `${money(n)} credit` : `${money(-n)} arrears`;
+};
+
 /* Full details of one of the member's own transactions. */
 export default function TransactionDetail() {
   const { id } = useParams();
@@ -58,6 +65,10 @@ export default function TransactionDetail() {
     ['From Date',        tx.from_date ? fmtDate(tx.from_date) : null],
     ['To Date',          tx.to_date ? fmtDate(tx.to_date) : null],
     ['Period',           days ? `${days} day${days === 1 ? '' : 's'}` : null],
+    // Contribution credit: what didn't make a whole day carries to the next deposit.
+    ['Brought Forward',  tx.credit_brought_forward != null ? creditText(tx.credit_brought_forward) : null],
+    ['Cover Value',      tx.cover_value != null ? money(tx.cover_value) : null],
+    ['Carried Forward',  tx.credit_carried_forward != null ? creditText(tx.credit_carried_forward) : null],
     ['Recorded On',      tx.created_on ? dayjs(tx.created_on).format('D MMM YYYY, HH:mm') : null],
     ['Last Updated',     edited ? dayjs(tx.updated_on).format('D MMM YYYY, HH:mm') : null],
   ].filter(([, v]) => v);

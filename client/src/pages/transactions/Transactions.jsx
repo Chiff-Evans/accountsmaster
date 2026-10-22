@@ -9,6 +9,15 @@ const fmtAmount = v => v != null ? Number(v).toLocaleString(undefined, { minimum
 const fmtDate = v => v ? dayjs(v).format('D MMM YYYY') : '—';
 const fmtUnits = n => Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
+// Credit carried between deposits: positive = credit, negative = arrears.
+const CreditText = ({ value }) => {
+  const v = Number(value || 0);
+  if (Math.abs(v) < 0.005) return <span>{fmtAmount(0)}</span>;
+  return v > 0
+    ? <span style={{ color: '#389e0d' }}>{fmtAmount(v)} credit</span>
+    : <span style={{ color: '#cf1322' }}>{fmtAmount(-v)} arrears</span>;
+};
+
 // Where the suggested From Date came from (see /transactions/period-suggestion).
 const BASIS_TEXT = {
   last_transaction: s => `last cover ended on (${fmtDate(s.last_to_date)})`,
@@ -167,6 +176,8 @@ export default function Transactions() {
     { title: 'From', dataIndex: 'from_date', key: 'from', mobileExpanded: true, render: fmtDate },
     { title: 'To', dataIndex: 'to_date', key: 'to', mobileExpanded: true, render: fmtDate },
     { title: 'Date', dataIndex: 'transaction_date', key: 'date', mobileExpanded: true, render: fmtDate },
+    { title: 'Credit C/F', dataIndex: 'credit_carried_forward', key: 'cf', align: 'right', mobileExpanded: true,
+      render: v => v == null ? '—' : <CreditText value={v} /> },
     { title: 'Other Details', dataIndex: 'other_details', key: 'other', mobileExpanded: true, ellipsis: true },
   ];
 
@@ -309,8 +320,15 @@ export default function Transactions() {
               type="info"
               showIcon
               style={{ marginBottom: 20 }}
-              message={`Starts ${fmtDate(suggestion.from_date)} — the ${BASIS_TEXT[suggestion.basis]?.(suggestion)}`}
-              description="Enter the amount to work out the To Date."
+              message={`Starts ${fmtDate(suggestion.from_date)} - ${BASIS_TEXT[suggestion.basis]?.(suggestion)}`}
+              description={
+                <>
+                  {Math.abs(suggestion.credit_brought_forward || 0) >= 0.005 && (
+                    <div>Brought forward: <CreditText value={suggestion.credit_brought_forward} /></div>
+                  )}
+                  <div>Enter the amount to work out the To Date.</div>
+                </>
+              }
             />
           )}
           {!suggesting && suggestion?.available && suggestion.rate && (
@@ -324,6 +342,12 @@ export default function Transactions() {
               description={
                 <>
                   <div>Starts the {BASIS_TEXT[suggestion.basis]?.(suggestion)}.</div>
+                  <div style={styles.ledger}>
+                    <span>Amount</span><span>{fmtAmount(suggestion.available_amount - suggestion.credit_brought_forward)}</span>
+                    <span>Brought forward</span><span><CreditText value={suggestion.credit_brought_forward} /></span>
+                    <span>Cover value ({suggestion.days_covered} days)</span><span>− {fmtAmount(suggestion.cover_value)}</span>
+                    <strong>Carried forward</strong><strong><CreditText value={suggestion.credit_carried_forward} /></strong>
+                  </div>
                   {suggestion.warnings?.map(w => <div key={w}>{w}</div>)}
                   <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2 }}>You can still adjust the dates.</div>
                 </>
@@ -347,3 +371,10 @@ export default function Transactions() {
     </>
   );
 }
+
+const styles = {
+  ledger: {
+    display: 'grid', gridTemplateColumns: '1fr auto', columnGap: 16, rowGap: 2,
+    margin: '6px 0', padding: '6px 10px', background: 'rgba(0,0,0,0.03)', borderRadius: 6, fontSize: 13,
+  },
+};
