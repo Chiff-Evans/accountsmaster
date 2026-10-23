@@ -37,7 +37,7 @@ export default function Members() {
   const [open, setOpen]         = useState(false);
   const [editing, setEditing]   = useState(null);
   const [pwdModal, setPwdModal] = useState(false);
-  const [hiddenCols, setHiddenCols] = useState(new Set(['email', 'other']));
+  const [hiddenCols, setHiddenCols] = useState(new Set(['email', 'other', 'idno', 'regfee', 'gender']));
   const [stages, setStages] = useState([]);
   const [stageFilter, setStageFilter] = useState(null);
   const [form]    = Form.useForm();
