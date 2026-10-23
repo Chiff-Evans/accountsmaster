@@ -16,7 +16,8 @@
 --     no contributions. The system accounts "Credit Interest" and
 --     "Deductions Done" ARE migrated, so the interest/deduction entries stay
 --     on the books.
---   * 168 transactions (ids 1–168, TRN-00001 … TRN-00168) in pay-date order,
+--   * 168 transactions (ids 1–168, TRN-00001 … TRN-00168) in legacy
+--     contribution id order, so legacy #N becomes id N / TRN-0000N,
 --     as MIGRATED records: dates kept exactly as recorded, no rate snapshot,
 --     outside the credit ledger, no member notifications.
 --   * Ref numbering continues from there: next member MEM-0009, next
@@ -35,9 +36,9 @@
 -- KNOWN DATA POINTS CARRIED OVER AS RECORDED (fix in the app afterwards if
 -- they're wrong):
 --   * legacy #106 — a 0.00 "Dummy Deposit" on Deductions Done.
---   * legacy #155 — "May 2026 Interest" (Credit Interest) has pay date
---     28-12-2026 but was recorded 15 Jun 2026 and covers May 2026 — almost
---     certainly a typo; with date-ordered numbering it becomes TRN-00168.
+--   * legacy #155 (TRN-00155) — "May 2026 Interest" (Credit Interest) has pay
+--     date 28-12-2026 but was recorded 15 Jun 2026 and covers May 2026 —
+--     almost certainly a typo for the pay date.
 --
 -- HOW TO RUN
 --   1. BACK UP production first:  mysqldump -u <user> -p <db> > pre_migration.sql
@@ -511,7 +512,8 @@ SET next_serial = (SELECT COUNT(*) FROM `members`) + 1
 WHERE process_type_id = (SELECT id FROM `process_types` WHERE process_type_name = 'member_registration');
 
 -- ── 6. Contributions -> migrated transactions (ids 1..n and TRN numbers in
---       pay-date order; contributions of skipped members are left out) ──
+--       legacy contribution id order; contributions of skipped members are
+--       left out) ──
 INSERT INTO `transactions`
   (`legacy_id`, `file_no`, `member_id`, `transaction_type_id`, `amount`, `from_date`, `to_date`,
    `transaction_date`, `other_details`, `is_migrated`, `created_on`)
@@ -521,7 +523,7 @@ SELECT
          IF(rn.use_year,  CONCAT('-', YEAR(CURDATE())), ''),
          IF(rn.use_month, CONCAT('-', LPAD(MONTH(CURDATE()), 2, '0')), ''),
          IF(rn.prefix REGEXP '[/-]$', '', '-'),
-         LPAD(ROW_NUMBER() OVER (ORDER BY STR_TO_DATE(c.pay_date, '%d-%m-%Y'), c.id), rn.padding, '0')),
+         LPAD(ROW_NUMBER() OVER (ORDER BY c.id), rn.padding, '0')),
   m.id,
   tt.id,
   c.amount,
@@ -538,7 +540,7 @@ JOIN `ref_numbering` rn
 JOIN `parameter_values` tt
   ON tt.parameter_id = (SELECT id FROM `parameters` WHERE text_id = 'transaction-types')
  AND tt.paramater_value = TRIM(c.transaction_type)
-ORDER BY STR_TO_DATE(c.pay_date, '%d-%m-%Y'), c.id;
+ORDER BY c.id;
 
 UPDATE `ref_numbering`
 SET next_serial = (SELECT COUNT(*) FROM `transactions`) + 1
