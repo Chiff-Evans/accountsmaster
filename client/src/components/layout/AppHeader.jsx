@@ -10,6 +10,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import LabelField from '../common/LabelField';
 import ImageUploadField from '../common/ImageUploadField';
 import NotificationBell from '../common/NotificationBell';
+import InstallButton from '../common/InstallButton';
 import api from '../../api';
 import { hashPassword } from '../../utils/crypto';
 
@@ -112,6 +113,7 @@ export default function AppHeader({ collapsed, onToggle, onMobileToggle }) {
       </Space>
 
       <Space size={20}>
+        <InstallButton variant="header" dark={isDark} />
         <NotificationBell dark={isDark} />
         <Dropdown menu={{ items: menuItems, onClick: handleMenuClick }} placement="bottomRight">
           <Space style={{ cursor: 'pointer', marginRight: 8 }}>

@@ -4,6 +4,8 @@ import { ConfigProvider, App as AntApp, notification } from 'antd';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import { CONFIG } from './config';
+// Registers the install-prompt listener before first render (the browser may fire it early).
+import './hooks/usePwaInstall';
 import './index.css';
 
 // Show a notification when a new version is available and auto-update

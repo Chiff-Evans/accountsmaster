@@ -4,6 +4,7 @@ import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import LabelField from '../../components/common/LabelField';
+import InstallButton from '../../components/common/InstallButton';
 
 export default function Login() {
   const { login } = useAuth();
@@ -63,6 +64,11 @@ export default function Login() {
             </Button>
           </Form.Item>
         </Form>
+
+        {/* Only shows for people who haven't installed the app */}
+        <div style={{ marginTop: 4, marginBottom: 8 }}>
+          <InstallButton block />
+        </div>
 
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
         </Typography.Text>
