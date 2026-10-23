@@ -10,11 +10,10 @@ const canEdit   = requirePermission('/stock/expenditure', 'can_edit');
 const canDelete = requirePermission('/stock/expenditure', 'can_delete');
 
 const LIST_SELECT = `
-  SELECT e.*, cm.file_no AS campaign_file_no, cm.campaign_title,
+  SELECT e.*,
          et.paramater_value AS expenditure_type_name,
          cur.paramater_value AS currency_name
   FROM expenditure e
-  LEFT JOIN campaigns cm         ON e.campaign_id = cm.id
   LEFT JOIN parameter_values et  ON e.expenditure_type_id = et.id
   LEFT JOIN parameter_values cur ON e.currency_id = cur.id
 `;
@@ -46,19 +45,17 @@ router.get('/', async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
     const search = req.query.search ? `%${req.query.search}%` : '%';
-    const campaignFilter = req.query.campaign_id ? 'AND e.campaign_id=?' : '';
-    const campaignParam = req.query.campaign_id ? [req.query.campaign_id] : [];
     const [rows] = await pool.query(
       `${LIST_SELECT}
-       WHERE (e.file_no LIKE ? OR cm.campaign_title LIKE ? OR e.reference LIKE ?) ${campaignFilter}
+       WHERE (e.file_no LIKE ? OR et.paramater_value LIKE ? OR e.reference LIKE ? OR e.comments LIKE ?)
        ORDER BY e.created_on DESC LIMIT ? OFFSET ?`,
-      [search, search, search, ...campaignParam, limit, offset]
+      [search, search, search, search, limit, offset]
     );
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) AS total FROM expenditure e
-       LEFT JOIN campaigns cm ON e.campaign_id = cm.id
-       WHERE (e.file_no LIKE ? OR cm.campaign_title LIKE ? OR e.reference LIKE ?) ${campaignFilter}`,
-      [search, search, search, ...campaignParam]
+       LEFT JOIN parameter_values et ON e.expenditure_type_id = et.id
+       WHERE (e.file_no LIKE ? OR et.paramater_value LIKE ? OR e.reference LIKE ? OR e.comments LIKE ?)`,
+      [search, search, search, search]
     );
     res.json({ data: rows, total, page, limit });
   } catch (err) { next(err); }
@@ -74,17 +71,16 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', canCreate, async (req, res, next) => {
   try {
-    const { campaign_id, expenditure_type_id, currency_id, amount, reference, expenditure_date, comments } = req.body;
-    if (!campaign_id) return res.status(400).json({ message: 'Campaign is required' });
+    const { expenditure_type_id, currency_id, amount, reference, expenditure_date, comments } = req.body;
     if (!expenditure_type_id) return res.status(400).json({ message: 'Expenditure type is required' });
     if (!amount) return res.status(400).json({ message: 'Amount is required' });
 
     const file_no = await generateRefNo('expenditure_creation');
     const [result] = await pool.query(
       `INSERT INTO expenditure
-         (file_no, campaign_id, expenditure_type_id, currency_id, amount, reference, expenditure_date, done_by, comments, created_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [file_no, campaign_id, expenditure_type_id, currency_id || null, amount,
+         (file_no, expenditure_type_id, currency_id, amount, reference, expenditure_date, done_by, comments, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [file_no, expenditure_type_id, currency_id || null, amount,
        reference || null, expenditure_date || null, req.user.id, comments || null, req.user.id]
     );
     const [rows] = await pool.query(`${LIST_SELECT} WHERE e.id=?`, [result.insertId]);
@@ -94,17 +90,16 @@ router.post('/', canCreate, async (req, res, next) => {
 
 router.put('/:id', canEdit, async (req, res, next) => {
   try {
-    const { campaign_id, expenditure_type_id, currency_id, amount, reference, expenditure_date, comments } = req.body;
-    if (!campaign_id) return res.status(400).json({ message: 'Campaign is required' });
+    const { expenditure_type_id, currency_id, amount, reference, expenditure_date, comments } = req.body;
     if (!expenditure_type_id) return res.status(400).json({ message: 'Expenditure type is required' });
     if (!amount) return res.status(400).json({ message: 'Amount is required' });
 
     await pool.query(
       `UPDATE expenditure SET
-         campaign_id=?, expenditure_type_id=?, currency_id=?, amount=?, reference=?,
+         expenditure_type_id=?, currency_id=?, amount=?, reference=?,
          expenditure_date=?, comments=?, updated_by=?
        WHERE id=?`,
-      [campaign_id, expenditure_type_id, currency_id || null, amount,
+      [expenditure_type_id, currency_id || null, amount,
        reference || null, expenditure_date || null, comments || null, req.user.id, req.params.id]
     );
     const [rows] = await pool.query(`${LIST_SELECT} WHERE e.id=?`, [req.params.id]);

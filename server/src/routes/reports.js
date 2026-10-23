@@ -1,13 +1,14 @@
 const router = require('express').Router();
 const pool = require('../config/db');
 const { authenticate } = require('../middleware/auth');
+const { depositSum, withdrawalSum } = require('../helpers/transactionTypes');
 
 router.use(authenticate);
 
-/* Reports for the campaign model — Revenue (payments), Expenditure, and
-   Profit (revenue - expenditure), all attributed to Campaigns and their
-   owning Advertiser. Every endpoint accepts optional date_from/date_to
-   (YYYY-MM-DD); with neither given, it reports across all time. */
+/* Financial reports — member transactions (deposits / withdrawals, by
+   transaction_date) and member registration fees (by reg_date). Every
+   endpoint accepts optional date_from/date_to (YYYY-MM-DD); with neither
+   given, it reports across all time. */
 function range(req, col) {
   const { date_from, date_to } = req.query;
   if (date_from && date_to) {
@@ -16,211 +17,130 @@ function range(req, col) {
   return { where: '1=1', params: [] };
 }
 
+const TX_FROM = `
+  FROM transactions t
+  LEFT JOIN parameter_values tt ON t.transaction_type_id = tt.id
+`;
+
+// deposits / withdrawals / net as numbers (mysql2 returns DECIMAL as strings)
+const withNet = r => {
+  const deposits = Number(r.deposits);
+  const withdrawals = Number(r.withdrawals);
+  return { ...r, deposits, withdrawals, net: deposits - withdrawals };
+};
+
 /* ── Overview KPIs (independent of whichever tab is active) ── */
 router.get('/summary', async (req, res, next) => {
   try {
-    const rev = range(req, 'payment_date');
-    const exp = range(req, 'expenditure_date');
-    const cmp = range(req, 'created_on');
+    const tx = range(req, 't.transaction_date');
+    const reg = range(req, 'm.reg_date');
 
-    const [[revenue]]     = await pool.query(`SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE ${rev.where}`, rev.params);
-    const [[expenditure]] = await pool.query(`SELECT COALESCE(SUM(amount),0) AS total FROM expenditure WHERE ${exp.where}`, exp.params);
-    const [[campaigns]]   = await pool.query(`SELECT COUNT(*) AS total FROM campaigns WHERE ${cmp.where}`, cmp.params);
+    const [[t]] = await pool.query(
+      `SELECT ${depositSum()} AS deposits, ${withdrawalSum()} AS withdrawals, COUNT(t.id) AS transaction_count
+       ${TX_FROM} WHERE ${tx.where}`,
+      tx.params
+    );
+    const [[r]] = await pool.query(
+      `SELECT COUNT(*) AS new_members, COALESCE(SUM(m.reg_fee),0) AS reg_fees
+       FROM members m WHERE m.reg_date IS NOT NULL AND ${reg.where}`,
+      reg.params
+    );
 
+    const s = withNet(t);
     res.json({
-      total_revenue:     Number(revenue.total),
-      total_expenditure: Number(expenditure.total),
-      total_profit:      Number(revenue.total) - Number(expenditure.total),
-      total_campaigns:   campaigns.total,
+      total_deposits:    s.deposits,
+      total_withdrawals: s.withdrawals,
+      net_contributions: s.net,
+      transaction_count: t.transaction_count,
+      new_members:       r.new_members,
+      total_reg_fees:    Number(r.reg_fees),
     });
   } catch (err) { next(err); }
 });
 
-/* ── Revenue ── */
+/* ── Transactions ── */
 
-router.get('/revenue/by-campaign', async (req, res, next) => {
+router.get('/transactions/by-member', async (req, res, next) => {
   try {
-    const { where, params } = range(req, 'p.payment_date');
-    const [data] = await pool.query(
-      `SELECT cm.id AS campaign_id, cm.campaign_title, cm.file_no,
-              COUNT(p.id) AS payment_count, COALESCE(SUM(p.amount),0) AS total_revenue
-       FROM payments p JOIN campaigns cm ON p.campaign_id = cm.id
+    const { where, params } = range(req, 't.transaction_date');
+    const [rows] = await pool.query(
+      `SELECT m.id AS member_id, m.member_ref_no, m.member_name,
+              COUNT(t.id) AS transaction_count, ${depositSum()} AS deposits, ${withdrawalSum()} AS withdrawals
+       ${TX_FROM}
+       JOIN members m ON t.member_id = m.id
        WHERE ${where}
-       GROUP BY cm.id ORDER BY total_revenue DESC`,
+       GROUP BY m.id, m.member_ref_no, m.member_name
+       ORDER BY m.member_name`,
       params
     );
-    const [[summary]] = await pool.query(
-      `SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount),0) AS total_revenue FROM payments p WHERE ${where}`,
-      params
-    );
-    res.json({ data, summary });
+    res.json({ data: rows.map(withNet) });
   } catch (err) { next(err); }
 });
 
-router.get('/revenue/by-advertiser', async (req, res, next) => {
+router.get('/transactions/by-type', async (req, res, next) => {
   try {
-    const { where, params } = range(req, 'p.payment_date');
-    const [data] = await pool.query(
-      `SELECT p.advertiser_id, COALESCE(c.advertiser_name, CONCAT(c.firstname,' ',c.lastname)) AS advertiser_name,
-              COUNT(p.id) AS payment_count, COALESCE(SUM(p.amount),0) AS total_revenue
-       FROM payments p
-       LEFT JOIN advertisers c ON p.advertiser_id = c.id
+    const { where, params } = range(req, 't.transaction_date');
+    const [rows] = await pool.query(
+      `SELECT tt.id AS transaction_type_id, COALESCE(tt.paramater_value, 'Unspecified') AS type_name,
+              COUNT(t.id) AS transaction_count, COALESCE(SUM(t.amount),0) AS total_amount
+       ${TX_FROM}
        WHERE ${where}
-       GROUP BY p.advertiser_id
-       ORDER BY total_revenue DESC`,
+       GROUP BY tt.id, tt.paramater_value
+       ORDER BY total_amount DESC`,
       params
     );
-    const [[summary]] = await pool.query(
-      `SELECT COUNT(DISTINCT p.advertiser_id) AS advertiser_count, COALESCE(SUM(p.amount),0) AS total_revenue FROM payments p WHERE ${where}`,
-      params
-    );
-    res.json({ data, summary });
+    res.json({ data: rows.map(r => ({ ...r, total_amount: Number(r.total_amount) })) });
   } catch (err) { next(err); }
 });
 
-/* Revenue attributed to each campaign, split by the campaign's current
-   workflow stage. */
-router.get('/revenue/by-stage', async (req, res, next) => {
+router.get('/transactions/by-date', async (req, res, next) => {
   try {
-    const { where, params } = range(req, 'p.payment_date');
-    const [data] = await pool.query(
-      `SELECT cm.id AS campaign_id, cm.campaign_title,
-              ws.id AS stage_id, ws.stage_name, ws.stage_color, ws.stage_order,
-              COUNT(p.id) AS payment_count, COALESCE(SUM(p.amount),0) AS total_revenue
-       FROM payments p
-       JOIN campaigns cm ON p.campaign_id = cm.id
-       LEFT JOIN workflow_stages ws ON cm.workflow_stage_id = ws.id
+    const { where, params } = range(req, 't.transaction_date');
+    const [rows] = await pool.query(
+      `SELECT DATE_FORMAT(t.transaction_date, '%Y-%m-%d') AS date,
+              COUNT(t.id) AS transaction_count, ${depositSum()} AS deposits, ${withdrawalSum()} AS withdrawals
+       ${TX_FROM}
        WHERE ${where}
-       GROUP BY cm.id, ws.id
-       ORDER BY cm.campaign_title, ws.stage_order`,
+       GROUP BY t.transaction_date
+       ORDER BY t.transaction_date`,
       params
     );
-    const [[summary]] = await pool.query(
-      `SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount),0) AS total_revenue FROM payments p WHERE ${where}`,
-      params
-    );
-    res.json({ data, summary });
+    res.json({ data: rows.map(withNet) });
   } catch (err) { next(err); }
 });
 
-router.get('/revenue/by-date', async (req, res, next) => {
+/* ── Registration fees (members by registration date) ── */
+
+router.get('/registrations/by-date', async (req, res, next) => {
   try {
-    const { where, params } = range(req, 'p.payment_date');
-    const [data] = await pool.query(
-      `SELECT DATE(p.payment_date) AS date, COUNT(p.id) AS payment_count, COALESCE(SUM(p.amount),0) AS total_revenue
-       FROM payments p WHERE ${where}
-       GROUP BY DATE(p.payment_date) ORDER BY date`,
+    const { where, params } = range(req, 'm.reg_date');
+    const [rows] = await pool.query(
+      `SELECT DATE_FORMAT(m.reg_date, '%Y-%m-%d') AS date,
+              COUNT(m.id) AS member_count, COALESCE(SUM(m.reg_fee),0) AS reg_fees
+       FROM members m
+       WHERE m.reg_date IS NOT NULL AND ${where}
+       GROUP BY m.reg_date
+       ORDER BY m.reg_date`,
       params
     );
-    const [[summary]] = await pool.query(
-      `SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount),0) AS total_revenue FROM payments p WHERE ${where}`,
-      params
-    );
-    res.json({ data, summary });
+    res.json({ data: rows.map(r => ({ ...r, reg_fees: Number(r.reg_fees) })) });
   } catch (err) { next(err); }
 });
 
-/* ── Profit (revenue - expenditure), per campaign ── */
-
-router.get('/profit/by-campaign', async (req, res, next) => {
+router.get('/registrations/by-position', async (req, res, next) => {
   try {
-    const rev = range(req, 'p.payment_date');
-    const exp = range(req, 'e.expenditure_date');
-
-    const [revRows] = await pool.query(
-      `SELECT campaign_id, COALESCE(SUM(amount),0) AS revenue FROM payments p WHERE ${rev.where} GROUP BY campaign_id`,
-      rev.params
-    );
-    const [expRows] = await pool.query(
-      `SELECT campaign_id, COALESCE(SUM(amount),0) AS expenditure FROM expenditure e WHERE ${exp.where} GROUP BY campaign_id`,
-      exp.params
-    );
-
-    const revMap = Object.fromEntries(revRows.filter(r => r.campaign_id != null).map(r => [r.campaign_id, Number(r.revenue)]));
-    const expMap = Object.fromEntries(expRows.filter(r => r.campaign_id != null).map(r => [r.campaign_id, Number(r.expenditure)]));
-    const campaignIds = [...new Set([...Object.keys(revMap), ...Object.keys(expMap)])].map(Number);
-
-    if (!campaignIds.length) {
-      return res.json({ data: [], summary: { total_revenue: 0, total_expenditure: 0, total_profit: 0 } });
-    }
-
-    const [campaigns] = await pool.query(`SELECT id, campaign_title, file_no FROM campaigns WHERE id IN (?)`, [campaignIds]);
-    const data = campaigns
-      .map(cm => {
-        const revenue = revMap[cm.id] || 0;
-        const expenditure = expMap[cm.id] || 0;
-        const profit = revenue - expenditure;
-        return {
-          campaign_id: cm.id, campaign_title: cm.campaign_title, file_no: cm.file_no,
-          revenue, expenditure, profit,
-          margin: revenue > 0 ? (profit / revenue) * 100 : 0,
-        };
-      })
-      .sort((a, b) => b.profit - a.profit);
-
-    const total_revenue = data.reduce((s, r) => s + r.revenue, 0);
-    const total_expenditure = data.reduce((s, r) => s + r.expenditure, 0);
-    res.json({ data, summary: { total_revenue, total_expenditure, total_profit: total_revenue - total_expenditure } });
-  } catch (err) { next(err); }
-});
-
-/* ── Expenditure ── */
-
-router.get('/expenditure/by-campaign', async (req, res, next) => {
-  try {
-    const { where, params } = range(req, 'e.expenditure_date');
-    const [data] = await pool.query(
-      `SELECT cm.id AS campaign_id, cm.campaign_title, cm.file_no,
-              COUNT(e.id) AS entry_count, COALESCE(SUM(e.amount),0) AS total_expenditure
-       FROM expenditure e JOIN campaigns cm ON e.campaign_id = cm.id
-       WHERE ${where}
-       GROUP BY cm.id ORDER BY total_expenditure DESC`,
+    const { where, params } = range(req, 'm.reg_date');
+    const [rows] = await pool.query(
+      `SELECT COALESCE(pos.paramater_value, 'Unspecified') AS position_name,
+              COUNT(m.id) AS member_count, COALESCE(SUM(m.reg_fee),0) AS reg_fees
+       FROM members m
+       LEFT JOIN parameter_values pos ON m.position_id = pos.id
+       WHERE m.reg_date IS NOT NULL AND ${where}
+       GROUP BY pos.id, pos.paramater_value
+       ORDER BY member_count DESC`,
       params
     );
-    const [[summary]] = await pool.query(
-      `SELECT COUNT(*) AS entry_count, COALESCE(SUM(amount),0) AS total_expenditure FROM expenditure e WHERE ${where}`,
-      params
-    );
-    res.json({ data, summary });
-  } catch (err) { next(err); }
-});
-
-/* "By items" = by Expenditure Type (the parameter values staff pick from
-   on the Expenditure form) — there's no separate line-item concept. */
-router.get('/expenditure/by-item', async (req, res, next) => {
-  try {
-    const { where, params } = range(req, 'e.expenditure_date');
-    const [data] = await pool.query(
-      `SELECT e.expenditure_type_id, pv.paramater_value AS type_name,
-              COUNT(e.id) AS entry_count, COALESCE(SUM(e.amount),0) AS total_expenditure
-       FROM expenditure e
-       LEFT JOIN parameter_values pv ON e.expenditure_type_id = pv.id
-       WHERE ${where}
-       GROUP BY e.expenditure_type_id ORDER BY total_expenditure DESC`,
-      params
-    );
-    const [[summary]] = await pool.query(
-      `SELECT COUNT(*) AS entry_count, COALESCE(SUM(amount),0) AS total_expenditure FROM expenditure e WHERE ${where}`,
-      params
-    );
-    res.json({ data, summary });
-  } catch (err) { next(err); }
-});
-
-router.get('/expenditure/by-date', async (req, res, next) => {
-  try {
-    const { where, params } = range(req, 'e.expenditure_date');
-    const [data] = await pool.query(
-      `SELECT DATE(e.expenditure_date) AS date, COUNT(e.id) AS entry_count, COALESCE(SUM(e.amount),0) AS total_expenditure
-       FROM expenditure e WHERE ${where}
-       GROUP BY DATE(e.expenditure_date) ORDER BY date`,
-      params
-    );
-    const [[summary]] = await pool.query(
-      `SELECT COUNT(*) AS entry_count, COALESCE(SUM(amount),0) AS total_expenditure FROM expenditure e WHERE ${where}`,
-      params
-    );
-    res.json({ data, summary });
+    res.json({ data: rows.map(r => ({ ...r, reg_fees: Number(r.reg_fees) })) });
   } catch (err) { next(err); }
 });
 

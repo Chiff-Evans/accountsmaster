@@ -13,8 +13,8 @@ self.skipWaiting();
 clientsClaim();
 
 // ── Web Push ──────────────────────────────────────────────────────────────────
-// Every notification type (campaign updates, registration reviews, proof
-// reviews, salary payments, order updates, ...) goes through this one
+// Every notification type (transactions recorded, registration reviews,
+// ...) goes through this one
 // handler, so nothing here may assume the notification is about any one of
 // them specifically — the title/body already say what it's actually about.
 self.addEventListener('push', event => {
@@ -47,7 +47,7 @@ self.addEventListener('notificationclick', event => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      // If the portal is already open, navigate it to the order detail page.
+      // If the portal is already open, navigate it to the linked page.
       for (const client of list) {
         if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
           return client.navigate(target).then(c => c?.focus());

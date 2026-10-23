@@ -1,1 +1,0 @@
-ALTER TABLE workflow_stages ADD COLUMN stage_color VARCHAR(20) DEFAULT NULL;

@@ -17,7 +17,7 @@ export default defineConfig({
       manifest: {
         name: "Accounts Master",
         short_name: "Accounts Master",
-        description: "Accounts Master Portal",
+        description: "Accounts Master",
         theme_color: "#0891b2",
         background_color: "#ffffff",
         display: "standalone",

@@ -13,8 +13,8 @@ self.skipWaiting();
 clientsClaim();
 
 // ── Web Push ──────────────────────────────────────────────────────────────────
-// Every notification type (new registrations, campaign/proof submissions,
-// ...) goes through this one handler, so nothing here may assume what the
+// Every notification type (new member registrations, ...) goes through
+// this one handler, so nothing here may assume what the
 // notification is about — the title/body already say that.
 self.addEventListener('push', event => {
   if (!event.data) return;

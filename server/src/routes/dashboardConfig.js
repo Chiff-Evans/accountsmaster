@@ -3,9 +3,8 @@ const pool = require('../config/db');
 const { authenticate } = require('../middleware/auth');
 
 const SECTION_KEYS = [
-  'stat_campaigns', 'stat_revenue', 'stat_expenditure',
-  'stat_advertisers', 'stat_brand_ambassadors',
-  'chart_trend', 'chart_pipeline', 'chart_top_campaigns', 'chart_recent_campaigns',
+  'stat_members', 'stat_deposits', 'stat_withdrawals', 'stat_net', 'stat_target',
+  'chart_trend', 'chart_by_type', 'chart_top_members', 'chart_recent_transactions',
 ];
 
 router.use(authenticate);

@@ -58,10 +58,14 @@ router.delete('/:id', canDelete, async (req, res, next) => {
    so it passes include_inactive=1 to see everything. */
 router.get('/values', async (req, res, next) => {
   try {
-    const { parameter_id, include_inactive } = req.query;
+    // text_id lets callers look a parameter up by its stable slug
+    // (e.g. 'parties-positions') instead of an auto-increment id that
+    // differs between databases.
+    const { parameter_id, text_id, include_inactive } = req.query;
     const where = [];
     const params = [];
     if (parameter_id) { where.push('pv.parameter_id=?'); params.push(parameter_id); }
+    if (text_id) { where.push('pv.parameter_id=(SELECT id FROM parameters WHERE text_id=? LIMIT 1)'); params.push(text_id); }
     if (!include_inactive) { where.push('pv.is_active=1'); }
     let sql = `
       SELECT pv.*, ppv.paramater_value AS parent_value_name, ppv.parameter_id AS parent_parameter_id

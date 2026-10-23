@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { HomeOutlined, SoundOutlined } from '@ant-design/icons';
+import { HomeOutlined, SwapOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import NotificationBell from '../common/NotificationBell';
+import InstallButton from '../common/InstallButton';
 
 const NAV = [
-  { path: '/dashboard',  icon: HomeOutlined,  label: 'Home' },
-  { path: '/campaigns',  icon: SoundOutlined, label: 'Campaigns' },
+  { path: '/dashboard',    icon: HomeOutlined, label: 'Home' },
+  { path: '/transactions', icon: SwapOutlined, label: 'Transactions' },
+  { path: '/next-of-kin',  icon: TeamOutlined, label: 'Next of Kin' },
+  { path: '/profile',      icon: UserOutlined, label: 'Profile' },
 ];
 
 export default function AppLayout({ children }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { advertiser } = useAuth();
+  const { member } = useAuth();
   const [businessName, setBusinessName] = useState('Accounts Master');
 
   useEffect(() => {
@@ -22,7 +25,7 @@ export default function AppLayout({ children }) {
       .catch(() => {});
   }, []);
 
-  const displayName = advertiser?.advertiser_name || `${advertiser?.firstname ?? ''} ${advertiser?.lastname ?? ''}`.trim();
+  const displayName = member?.member_name || '';
   const initials = (displayName || '').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const isProfileActive = pathname === '/profile';
 
@@ -44,12 +47,13 @@ export default function AppLayout({ children }) {
               {businessName}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, letterSpacing: 0.3 }}>
-              Advertiser Portal
+              Members Portal
             </div>
           </div>
 
           {/* Notifications + Profile avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <InstallButton variant="header" />
           <NotificationBell api={api} />
           <button
             onClick={() => navigate('/profile')}
@@ -63,7 +67,7 @@ export default function AppLayout({ children }) {
                 {displayName}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10 }}>
-                {advertiser?.advertiser_ref_no}
+                {member?.member_ref_no}
               </div>
             </div>
             <div style={{

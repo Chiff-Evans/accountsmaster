@@ -65,7 +65,7 @@ export default function ProcessTypes() {
 
           <LabelField label="Data Table">
             <Form.Item name="data_table" style={{ marginBottom: 0 }}>
-              <Input placeholder="e.g. users, orders, advertisers" />
+              <Input placeholder="e.g. users, members, transactions" />
             </Form.Item>
           </LabelField>
         </Form>

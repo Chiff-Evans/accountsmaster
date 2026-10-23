@@ -4,8 +4,7 @@ import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 dayjs.extend(isoWeek);
 import {
-  NotificationOutlined, SolutionOutlined, DollarOutlined, WalletOutlined,
-  TeamOutlined,
+  ArrowDownOutlined, ArrowUpOutlined, DollarOutlined, AimOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -14,6 +13,8 @@ import {
 import ResponsiveTable from '../../components/common/ResponsiveTable';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import api from '../../api';
+
+const fmtMoney = v => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 const PIE_COLORS = ['#1677ff','#52c41a','#faad14','#ff4d4f','#722ed1','#13c2c2','#fa8c16','#eb2f96'];
 
@@ -128,9 +129,9 @@ export default function Dashboard() {
   const [incDate,         setIncDate]         = useState(null);    // dayjs | null
   const [summary,         setSummary]         = useState(null);
   const [trend,           setTrend]           = useState([]);
-  const [pipeline,        setPipeline]        = useState([]);
-  const [topCampaigns,    setTopCampaigns]    = useState([]);
-  const [recentCampaigns, setRecentCampaigns] = useState([]);
+  const [byType,          setByType]          = useState([]);
+  const [topMembers,      setTopMembers]      = useState([]);
+  const [recentTx,        setRecentTx]        = useState([]);
   const [vis,             setVis]             = useState({});
   const [loading,         setLoading]         = useState(true);
 
@@ -176,18 +177,18 @@ export default function Dashboard() {
 
         const p = `?date_from=${dateRange.from}&date_to=${dateRange.to}`;
         const calls = [api.get(`/dashboard/summary${p}`)];
-        if (v.chart_trend)            calls.push(api.get(`/dashboard/trend${p}`));
-        if (v.chart_pipeline)         calls.push(api.get(`/dashboard/pipeline${p}`));
-        if (v.chart_top_campaigns)    calls.push(api.get(`/dashboard/top-campaigns${p}`));
-        if (v.chart_recent_campaigns) calls.push(api.get(`/dashboard/recent-campaigns${p}`));
+        if (v.chart_trend)               calls.push(api.get(`/dashboard/trend${p}`));
+        if (v.chart_by_type)             calls.push(api.get(`/dashboard/by-type${p}`));
+        if (v.chart_top_members)         calls.push(api.get(`/dashboard/top-members${p}`));
+        if (v.chart_recent_transactions) calls.push(api.get(`/dashboard/recent-transactions${p}`));
 
         const results = await Promise.all(calls);
         let i = 0;
         setSummary(results[i++].data);
-        if (v.chart_trend)            setTrend(results[i++].data);
-        if (v.chart_pipeline)         setPipeline(results[i++].data);
-        if (v.chart_top_campaigns)    setTopCampaigns(results[i++].data);
-        if (v.chart_recent_campaigns) setRecentCampaigns(results[i++].data);
+        if (v.chart_trend)               setTrend(results[i++].data);
+        if (v.chart_by_type)             setByType(results[i++].data);
+        if (v.chart_top_members)         setTopMembers(results[i++].data);
+        if (v.chart_recent_transactions) setRecentTx(results[i++].data);
       } finally {
         setLoading(false);
       }
@@ -196,16 +197,16 @@ export default function Dashboard() {
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '40px auto' }} />;
 
-  const campaignCols = [
-    { title: 'Campaign', dataIndex: 'campaign_title', key: 'campaign' },
-    { title: 'Advertiser', dataIndex: 'advertiser_name', key: 'advertiser' },
-    { title: 'Budget', dataIndex: 'budget', key: 'budget', align: 'right',
-      render: v => v != null ? Number(v).toLocaleString() : '—' },
-    { title: 'Stage', key: 'stage',
-      render: (_, r) => r.stage_name ? <Tag color={r.stage_color || 'default'}>{r.stage_name}</Tag> : '—' },
-    { title: 'Date', dataIndex: 'created_on', key: 'dt',
+  const txCols = [
+    { title: 'File No', dataIndex: 'file_no', key: 'file', render: v => v ? <Tag color="blue">{v}</Tag> : '—' },
+    { title: 'Member', dataIndex: 'member_name', key: 'member' },
+    { title: 'Type', dataIndex: 'transaction_type_name', key: 'type', render: v => v ? <Tag>{v}</Tag> : '—' },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right', render: v => v != null ? fmtMoney(v) : '—' },
+    { title: 'Date', dataIndex: 'transaction_date', key: 'dt',
       render: v => v ? dayjs(v).format('D MMM YYYY') : '—' },
   ];
+
+  const target = summary?.target;
 
   return (
     <div>
@@ -288,72 +289,73 @@ export default function Dashboard() {
 
       {/* ── Stat cards ── */}
       <Row gutter={[12, 12]} justify="center">
-        {vis.stat_campaigns && (
+        {vis.stat_members && (
           <Col xs={12} sm={8} xl={4}>
-            <StatCard title="Campaigns" value={summary?.total_campaigns}
-              icon={<NotificationOutlined />} color="#1677ff" isMobile={isMobile} />
-          </Col>
-        )}
-        {vis.stat_revenue && (
-          <Col xs={12} sm={8} xl={4}>
-            <StatCard title="Revenue (KES)" value={summary?.total_revenue}
-              icon={<DollarOutlined />} color="#52c41a" isMobile={isMobile}
-              formatter={v => Number(v ?? 0).toLocaleString()} />
-          </Col>
-        )}
-        {vis.stat_expenditure && (
-          <Col xs={12} sm={8} xl={4}>
-            <StatCard title="Expenditure (KES)" value={summary?.total_expenditure}
-              icon={<WalletOutlined />} color="#fa8c16" isMobile={isMobile}
-              formatter={v => Number(v ?? 0).toLocaleString()} />
-          </Col>
-        )}
-        {vis.stat_advertisers && (
-          <Col xs={12} sm={8} xl={4}>
-            <StatCard title="Active Advertisers" value={summary?.total_advertisers}
+            <StatCard title="Active Members" value={summary?.total_members}
               icon={<TeamOutlined />} color="#722ed1" isMobile={isMobile} />
           </Col>
         )}
-        {vis.stat_brand_ambassadors && (
+        {vis.stat_deposits && (
           <Col xs={12} sm={8} xl={4}>
-            <StatCard title="Active Brand Ambassadors" value={summary?.total_brand_ambassadors}
-              icon={<SolutionOutlined />} color="#eb2f96" isMobile={isMobile} />
+            <StatCard title="Deposits (KES)" value={summary?.total_deposits}
+              icon={<ArrowDownOutlined />} color="#52c41a" isMobile={isMobile} formatter={fmtMoney} />
+          </Col>
+        )}
+        {vis.stat_withdrawals && (
+          <Col xs={12} sm={8} xl={4}>
+            <StatCard title="Withdrawals (KES)" value={summary?.total_withdrawals}
+              icon={<ArrowUpOutlined />} color="#fa8c16" isMobile={isMobile} formatter={fmtMoney} />
+          </Col>
+        )}
+        {vis.stat_net && (
+          <Col xs={12} sm={8} xl={4}>
+            <StatCard title="Net Contributions (KES)" value={summary?.net_contributions}
+              icon={<DollarOutlined />} color="#1677ff" isMobile={isMobile} formatter={fmtMoney} />
+          </Col>
+        )}
+        {vis.stat_target && (
+          <Col xs={12} sm={8} xl={4}>
+            <StatCard
+              title={target ? `Target Progress · ${fmtMoney(target.target_amount)} each` : 'Target Progress'}
+              value={target ? `${target.percent}%` : 'No active target'}
+              subtitle={target && target.outstanding > 0 ? `KES ${fmtMoney(target.outstanding)} outstanding` : null}
+              icon={<AimOutlined />} color="#13c2c2" isMobile={isMobile} />
           </Col>
         )}
       </Row>
 
-      {/* ── Revenue vs Expenditure trend + Campaigns pipeline ── */}
-      {(vis.chart_trend || vis.chart_pipeline) && (
+      {/* ── Deposits vs Withdrawals trend + split by type ── */}
+      {(vis.chart_trend || vis.chart_by_type) && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           {vis.chart_trend && (
-            <Col xs={24} xl={vis.chart_pipeline ? 16 : 24}>
-              <Card title={`Revenue vs Expenditure — ${dateRange?.label ?? ''}`} size="small">
+            <Col xs={24} xl={vis.chart_by_type ? 16 : 24}>
+              <Card title={`Deposits vs Withdrawals — ${dateRange?.label ?? ''}`} size="small">
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={trend}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                     <YAxis />
-                    <Tooltip formatter={v => Number(v).toLocaleString()} />
+                    <Tooltip formatter={v => fmtMoney(v)} />
                     <Legend />
-                    <Line type="monotone" dataKey="revenue"     stroke="#52c41a" name="Revenue"     dot={false} />
-                    <Line type="monotone" dataKey="expenditure" stroke="#ff4d4f" name="Expenditure" dot={false} />
+                    <Line type="monotone" dataKey="deposits"    stroke="#52c41a" name="Deposits"    dot={false} />
+                    <Line type="monotone" dataKey="withdrawals" stroke="#fa8c16" name="Withdrawals" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </Card>
             </Col>
           )}
-          {vis.chart_pipeline && (
+          {vis.chart_by_type && (
             <Col xs={24} xl={vis.chart_trend ? 8 : 24}>
-              <Card title="Campaigns Pipeline" size="small">
+              <Card title="Transactions by Type" size="small">
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
-                    <Pie data={pipeline} dataKey="count" nameKey="status_name"
+                    <Pie data={byType} dataKey="total" nameKey="type_name"
                       cx="50%" cy="42%" outerRadius={85} labelLine={false} label={<PieLabel />}>
-                      {pipeline.map((entry, i) => (
-                        <Cell key={i} fill={entry.color || PIE_COLORS[i % PIE_COLORS.length]} />
+                      {byType.map((entry, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v, name) => [v, name]} />
+                    <Tooltip formatter={(v, name) => [`KES ${fmtMoney(v)}`, name]} />
                     <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -364,27 +366,27 @@ export default function Dashboard() {
       )}
 
       {/* ── Bottom row ── */}
-      {(vis.chart_top_campaigns || vis.chart_recent_campaigns) && (
+      {(vis.chart_top_members || vis.chart_recent_transactions) && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          {vis.chart_top_campaigns && (
-            <Col xs={24} xl={vis.chart_recent_campaigns ? 12 : 24}>
-              <Card title="Top 10 Campaigns by Revenue" size="small">
+          {vis.chart_top_members && (
+            <Col xs={24} xl={vis.chart_recent_transactions ? 12 : 24}>
+              <Card title="Top 10 Members by Net Contribution" size="small">
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={topCampaigns} layout="vertical">
+                  <BarChart data={topMembers} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" domain={[0, 'dataMax']} tick={{ fontSize: 11 }} />
-                    <YAxis dataKey="campaign_title" type="category" width={120} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={v => [Number(v).toLocaleString(), 'Revenue (KES)']} />
-                    <Bar dataKey="total_revenue" fill="#52c41a" name="Revenue" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="member_name" type="category" width={120} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={v => [fmtMoney(v), 'Net Contribution (KES)']} />
+                    <Bar dataKey="net_contribution" fill="#1677ff" name="Net Contribution" />
                   </BarChart>
                 </ResponsiveContainer>
               </Card>
             </Col>
           )}
-          {vis.chart_recent_campaigns && (
-            <Col xs={24} xl={vis.chart_top_campaigns ? 12 : 24}>
-              <Card title="Recent Campaigns" size="small">
-                <ResponsiveTable rowKey="id" columns={campaignCols} dataSource={recentCampaigns}
+          {vis.chart_recent_transactions && (
+            <Col xs={24} xl={vis.chart_top_members ? 12 : 24}>
+              <Card title="Recent Transactions" size="small">
+                <ResponsiveTable rowKey="id" columns={txCols} dataSource={recentTx}
                   pagination={false} size="small" scroll={{ x: true }} />
               </Card>
             </Col>

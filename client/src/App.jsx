@@ -10,20 +10,15 @@ import ProcessTypes from './pages/config/ProcessTypes';
 import RefNumbers from './pages/config/RefNumbers';
 import DashboardConfig from './pages/config/DashboardConfig';
 import Workflows from './pages/config/Workflows';
-import LoyaltyConfig from './pages/config/LoyaltyConfig';
 import Users from './pages/users/Users';
-import Payments from './pages/stock/Payments';
 import Expenditure from './pages/stock/Expenditure';
-import Salaries from './pages/stock/Salaries';
-import Advertisers from './pages/advertisers/Advertisers';
-import ReceiptConfig from './pages/stock/ReceiptConfig';
-import PublicReceipt from './pages/orders/PublicReceipt';
-import CampaignsReport from './pages/reports/CampaignsReport';
+import Members from './pages/members/Members';
+import MemberStatistics from './pages/members/MemberStatistics';
+import FinancialReport from './pages/reports/FinancialReport';
 import Parameters from './pages/config/Parameters';
-import BrandAmbassadors from './pages/brand-ambassadors/BrandAmbassadors';
-import BrandAmbassadorSettings from './pages/config/BrandAmbassadorSettings';
-import Campaigns from './pages/campaigns/Campaigns';
-import ProofReview from './pages/campaigns/ProofReview';
+import Targets from './pages/config/Targets';
+import ContributionRates from './pages/config/ContributionRates';
+import Transactions from './pages/transactions/Transactions';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -36,7 +31,6 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/receipt/:receipt_no" element={<PublicReceipt />} />
           <Route
             path="/*"
             element={
@@ -52,19 +46,15 @@ export default function App() {
                     <Route path="/config/ref-numbering"  element={<RefNumbers />} />
                     <Route path="/config/dashboard"      element={<DashboardConfig />} />
                     <Route path="/config/workflows"     element={<Workflows />} />
-                    <Route path="/config/loyalty"       element={<LoyaltyConfig />} />
                     <Route path="/config/parameters"    element={<Parameters />} />
-                    <Route path="/config/brand-ambassador-settings" element={<BrandAmbassadorSettings />} />
+                    <Route path="/config/targets"       element={<Targets />} />
+                    <Route path="/config/contribution-rates" element={<ContributionRates />} />
                     <Route path="/users"                 element={<Users />} />
-                    <Route path="/stock/payments"        element={<Payments />} />
                     <Route path="/stock/expenditure"     element={<Expenditure />} />
-                    <Route path="/stock/salaries"        element={<Salaries />} />
-                    <Route path="/advertisers"            element={<Advertisers />} />
-                    <Route path="/stock/receipt-config" element={<ReceiptConfig />} />
-                    <Route path="/reports/campaigns"    element={<CampaignsReport />} />
-                    <Route path="/brand-ambassadors"    element={<BrandAmbassadors />} />
-                    <Route path="/campaigns"            element={<Campaigns />} />
-                    <Route path="/campaigns/proof-review" element={<ProofReview />} />
+                    <Route path="/members"            element={<Members />} />
+                    <Route path="/members/statistics" element={<MemberStatistics />} />
+                    <Route path="/reports/finance"      element={<FinancialReport />} />
+                    <Route path="/transactions"         element={<Transactions />} />
                   </Routes>
                 </AppLayout>
               </ProtectedRoute>

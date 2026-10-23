@@ -143,15 +143,15 @@ router.get('/:wid/stages', async (req, res, next) => {
 
 router.post('/:wid/stages', canCreate, async (req, res, next) => {
   try {
-    const { stage_name, description, responsible_group, workflow_status, stage_color, stage_order, is_initial, is_terminal, include_in_revenue, advertiser_can_edit, send_approval_email, assign_ref_no, show_in_grid_default } = req.body;
+    const { stage_name, description, responsible_group, workflow_status, stage_color, stage_order, is_initial, is_terminal, include_in_revenue, member_can_edit, send_approval_email, assign_ref_no, show_in_grid_default } = req.body;
     const [r] = await pool.query(
       `INSERT INTO workflow_stages
-         (workflow_id, stage_name, description, responsible_group, workflow_status, stage_color, stage_order, is_initial, is_terminal, include_in_revenue, advertiser_can_edit, send_approval_email, assign_ref_no, show_in_grid_default)
+         (workflow_id, stage_name, description, responsible_group, workflow_status, stage_color, stage_order, is_initial, is_terminal, include_in_revenue, member_can_edit, send_approval_email, assign_ref_no, show_in_grid_default)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [req.params.wid, stage_name, description || null, responsible_group || null,
        workflow_status || null, stage_color || null, stage_order || 0, is_initial ? 1 : 0, is_terminal ? 1 : 0,
        include_in_revenue === false || include_in_revenue === 0 ? 0 : 1,
-       advertiser_can_edit === false || advertiser_can_edit === 0 ? 0 : 1,
+       member_can_edit === false || member_can_edit === 0 ? 0 : 1,
        send_approval_email ? 1 : 0,
        assign_ref_no ? 1 : 0,
        show_in_grid_default === false || show_in_grid_default === 0 ? 0 : 1]
@@ -162,16 +162,16 @@ router.post('/:wid/stages', canCreate, async (req, res, next) => {
 
 router.put('/:wid/stages/:id', canEdit, async (req, res, next) => {
   try {
-    const { stage_name, description, responsible_group, workflow_status, stage_color, stage_order, is_initial, is_terminal, include_in_revenue, advertiser_can_edit, send_approval_email, assign_ref_no, show_in_grid_default } = req.body;
+    const { stage_name, description, responsible_group, workflow_status, stage_color, stage_order, is_initial, is_terminal, include_in_revenue, member_can_edit, send_approval_email, assign_ref_no, show_in_grid_default } = req.body;
     await pool.query(
       `UPDATE workflow_stages SET
          stage_name=?, description=?, responsible_group=?, workflow_status=?, stage_color=?,
-         stage_order=?, is_initial=?, is_terminal=?, include_in_revenue=?, advertiser_can_edit=?, send_approval_email=?, assign_ref_no=?, show_in_grid_default=?
+         stage_order=?, is_initial=?, is_terminal=?, include_in_revenue=?, member_can_edit=?, send_approval_email=?, assign_ref_no=?, show_in_grid_default=?
        WHERE id=? AND workflow_id=?`,
       [stage_name, description || null, responsible_group || null, workflow_status || null,
        stage_color || null, stage_order || 0, is_initial ? 1 : 0, is_terminal ? 1 : 0,
        include_in_revenue === false || include_in_revenue === 0 ? 0 : 1,
-       advertiser_can_edit === false || advertiser_can_edit === 0 ? 0 : 1,
+       member_can_edit === false || member_can_edit === 0 ? 0 : 1,
        send_approval_email ? 1 : 0,
        assign_ref_no ? 1 : 0,
        show_in_grid_default === false || show_in_grid_default === 0 ? 0 : 1,

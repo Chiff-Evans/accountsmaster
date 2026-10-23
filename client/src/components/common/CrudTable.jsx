@@ -162,6 +162,7 @@ export default function CrudTable({
   hidePagination = false,
   extraActions,
   heightOffset = 0,
+  summaryRow,
 }) {
   const perms   = usePagePermissions();
   const isMobile = useIsMobile();
@@ -263,24 +264,32 @@ export default function CrudTable({
     else { setISize(v); setIPage(1); }
   };
 
-  const containerHeight = hidePagination
-    ? 'auto'
-    : customHeight
-      ? `${customHeight}px`
-      : `calc(${isMobile ? '100dvh' : '100vh'} - ${LAYOUT_H + heightOffset}px)`;
+  // An explicit height without pagination (e.g. a grid inside a pop-up)
+  // stays exactly that tall — rows scroll inside it instead of growing it.
+  const fixedHeight = hidePagination && !!customHeight;
+  const TOOLBAR_H = 44;
+  const TABLE_HEADER_H = 39;
+
+  const containerHeight = fixedHeight
+    ? `${customHeight}px`
+    : hidePagination
+      ? 'auto'
+      : customHeight
+        ? `${customHeight}px`
+        : `calc(${isMobile ? '100dvh' : '100vh'} - ${LAYOUT_H + heightOffset}px)`;
 
   const scrollY = (() => {
+    if (fixedHeight) return customHeight - TOOLBAR_H - TABLE_HEADER_H;
     if (hidePagination) return undefined;
     const bodyH = customHeight ? customHeight - 140 : winH - SCROLL_DEDUCT - heightOffset;
     // Don't fix the height when content fits — avoids unnecessary scrollbar track
-    const TABLE_HEADER_H = 39;
     const contentH = visibleRowCount * ROW_H + TABLE_HEADER_H;
     if (contentH < bodyH) return undefined;
     return customHeight ? bodyH : `calc(100vh - ${SCROLL_DEDUCT + heightOffset}px)`;
   })();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: containerHeight, overflow: hidePagination ? 'visible' : 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: containerHeight, overflow: hidePagination && !fixedHeight ? 'visible' : 'hidden' }}>
 
       {/* Toolbar */}
       {isMobile ? (
@@ -371,9 +380,19 @@ export default function CrudTable({
               />
             ))
           )}
+          {/* Totals card — same column renderers as the rows above */}
+          {summaryRow && !loading && displayData?.length > 0 && (
+            <RecordCard
+              record={summaryRow}
+              columns={columns}
+              rowKey={rowKey}
+              showEdit={false}
+              showDelete={false}
+            />
+          )}
         </div>
       ) : (
-        <div style={hidePagination ? {} : { flex: 1, minHeight: 0 }}>
+        <div style={hidePagination && !fixedHeight ? {} : { flex: 1, minHeight: 0 }}>
           <Table
             rowKey={rowKey}
             columns={[...columns, ...actionCol]}
@@ -382,6 +401,26 @@ export default function CrudTable({
             pagination={false}
             scroll={{ x: 'max-content', y: scrollY }}
             size="small"
+            summary={summaryRow ? () => {
+              // Optional totals row, sticky at the bottom; each cell reuses
+              // its column's render so totals format like the rows above.
+              const allCols = [...columns, ...actionCol];
+              return (
+                <Table.Summary fixed>
+                  <Table.Summary.Row style={{ background: '#fafafa' }}>
+                    {allCols.map((col, i) => {
+                      const val = col.dataIndex ? summaryRow[col.dataIndex] : undefined;
+                      const content = col.render ? col.render(val, summaryRow, -1) : val;
+                      return (
+                        <Table.Summary.Cell key={col.key ?? i} index={i} align={col.align}>
+                          <strong>{content}</strong>
+                        </Table.Summary.Cell>
+                      );
+                    })}
+                  </Table.Summary.Row>
+                </Table.Summary>
+              );
+            } : undefined}
             expandable={isTreeData ? {
               expandedRowKeys: effectiveExpandedKeys,
               onExpandedRowsChange: keys => { if (!searchText) setExpandedKeys(keys); },

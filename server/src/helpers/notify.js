@@ -6,31 +6,15 @@ const { pushTo } = require('../utils/pushNotify');
    entries for its own audience, so this is the single source of truth for
    both "what can happen" and "what a user can opt out of". */
 const NOTIFICATION_TYPES = [
-  // Brand ambassador portal
-  { key: 'campaign_assigned', audience: 'brand_ambassador', label: 'Assigned to a campaign',
-    description: 'When you are assigned to run a new campaign.' },
-  { key: 'proof_reviewed', audience: 'brand_ambassador', label: 'Posting proof reviewed',
-    description: 'When a daily posting proof you submitted is accepted, rejected, or reverted.' },
-  { key: 'salary_paid', audience: 'brand_ambassador', label: 'Salary payment recorded',
-    description: 'When a salary payment is recorded for you.' },
-  { key: 'registration_reviewed', audience: 'brand_ambassador', label: 'Registration reviewed',
-    description: 'When your brand ambassador registration is approved or rejected.' },
-
-  // Advertiser (business) portal
-  { key: 'campaign_stage_changed', audience: 'advertiser', label: 'Campaign status updates',
-    description: "When one of your campaigns' status changes." },
-  { key: 'registration_reviewed', audience: 'advertiser', label: 'Registration reviewed',
-    description: 'When your advertiser registration is approved or rejected.' },
+  // Member portal
+  { key: 'transaction_recorded', audience: 'member', label: 'Transaction recorded',
+    description: 'When a deposit, withdrawal or other transaction is recorded on your account.' },
+  { key: 'registration_reviewed', audience: 'member', label: 'Registration reviewed',
+    description: 'When your member registration is approved or rejected.' },
 
   // MIS (staff)
-  { key: 'brand_ambassador_registered', audience: 'mis', label: 'New brand ambassador registration',
-    description: 'When a new brand ambassador registers and needs review.' },
-  { key: 'advertiser_registered', audience: 'mis', label: 'New advertiser registration',
-    description: 'When a new advertiser registers and needs review.' },
-  { key: 'campaign_submitted', audience: 'mis', label: 'New campaign submitted',
-    description: 'When an advertiser submits a new campaign from the portal.' },
-  { key: 'proof_submitted', audience: 'mis', label: 'New posting proof submitted',
-    description: 'When a brand ambassador submits a daily posting proof for review.' },
+  { key: 'member_registered', audience: 'mis', label: 'New member registration',
+    description: 'When a new member registers and needs review.' },
 ];
 
 const typesFor = audience => NOTIFICATION_TYPES.filter(t => t.audience === audience);
@@ -66,7 +50,7 @@ async function notify(audience, recipientId, type, { title, body, url } = {}) {
     }
   } catch (err) {
     // A notification failing to send should never break the action that
-    // triggered it (assigning a campaign, reviewing a proof, ...).
+    // triggered it (recording a transaction, approving a member, ...).
     console.error('notify() failed:', err.message);
   }
 }
@@ -145,8 +129,8 @@ async function setPreference(audience, recipientId, type, { enabled, push_enable
 /* Attaches the 5 standard notification endpoints (list, mark-one-read,
    mark-all-read, get preferences, set preference) to an already-authed
    router for one audience. `getRecipientId(req)` pulls the current user's
-   id out of whatever that router already put on `req` (req.brandAmbassador.id,
-   req.advertiser.id, req.user.id, ...). Mount AFTER that router's own auth
+   id out of whatever that router already put on `req` (req.member.id,
+   req.user.id, ...). Mount AFTER that router's own auth
    middleware. */
 function mountNotificationRoutes(router, audience, getRecipientId) {
   router.get('/notifications', async (req, res, next) => {

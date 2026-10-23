@@ -590,7 +590,7 @@ export default function Workflows() {
       vals.is_initial        = vals.is_initial        ? 1 : 0;
       vals.is_terminal       = vals.is_terminal       ? 1 : 0;
       vals.include_in_revenue = vals.include_in_revenue ? 1 : 0;
-      vals.advertiser_can_edit = vals.advertiser_can_edit ? 1 : 0;
+      vals.member_can_edit = vals.member_can_edit ? 1 : 0;
       vals.send_approval_email = vals.send_approval_email ? 1 : 0;
       vals.assign_ref_no = vals.assign_ref_no ? 1 : 0;
       vals.show_in_grid_default = vals.show_in_grid_default ? 1 : 0;
@@ -644,7 +644,7 @@ export default function Workflows() {
       render: v => v || v === undefined
         ? <Tag color="green">Included</Tag>
         : <Tag color="red">Excluded</Tag> },
-    { title: 'Portal Edit', dataIndex: 'advertiser_can_edit', key: 'edit', mobileExpanded: true,
+    { title: 'Portal Edit', dataIndex: 'member_can_edit', key: 'edit', mobileExpanded: true,
       render: v => v || v === undefined
         ? <Tag color="green">Allowed</Tag>
         : <Tag color="red">Locked</Tag> },
@@ -680,10 +680,10 @@ export default function Workflows() {
           loading={false}
           rowKey="id"
           heightOffset={46}
-          onAdd={perms.canCreate ? () => { setEditingStage(null); stageForm.resetFields(); stageForm.setFieldsValue({ include_in_revenue: true, advertiser_can_edit: true, send_approval_email: false, assign_ref_no: false, show_in_grid_default: true }); setStageModal(true); } : null}
+          onAdd={perms.canCreate ? () => { setEditingStage(null); stageForm.resetFields(); stageForm.setFieldsValue({ include_in_revenue: true, member_can_edit: true, send_approval_email: false, assign_ref_no: false, show_in_grid_default: true }); setStageModal(true); } : null}
           onEdit={perms.canEdit ? r => {
             setEditingStage(r);
-            stageForm.setFieldsValue({ ...r, is_initial: !!r.is_initial, is_terminal: !!r.is_terminal, include_in_revenue: r.include_in_revenue !== 0, advertiser_can_edit: r.advertiser_can_edit !== 0, send_approval_email: !!r.send_approval_email, assign_ref_no: !!r.assign_ref_no, show_in_grid_default: r.show_in_grid_default !== 0 });
+            stageForm.setFieldsValue({ ...r, is_initial: !!r.is_initial, is_terminal: !!r.is_terminal, include_in_revenue: r.include_in_revenue !== 0, member_can_edit: r.member_can_edit !== 0, send_approval_email: !!r.send_approval_email, assign_ref_no: !!r.assign_ref_no, show_in_grid_default: r.show_in_grid_default !== 0 });
             setStageModal(true);
           } : null}
           onDelete={perms.canDelete ? deleteStage : null}
@@ -866,7 +866,7 @@ export default function Workflows() {
                 { name: 'is_initial',        label: 'Initial Stage',   color: '#52c41a' },
                 { name: 'is_terminal',       label: 'Terminal Stage',  color: '#ff4d4f' },
                 { name: 'include_in_revenue', label: 'Count Revenue',  color: '#1677ff' },
-                { name: 'advertiser_can_edit', label: 'Advertiser Can Edit', color: '#722ed1' },
+                { name: 'member_can_edit', label: 'Member Can Edit', color: '#722ed1' },
                 { name: 'send_approval_email', label: 'Send Status Email', color: '#13c2c2' },
                 { name: 'assign_ref_no',       label: 'Assign File Number', color: '#fa8c16' },
                 { name: 'show_in_grid_default', label: 'Show In Grid By Default', color: '#52c41a' },

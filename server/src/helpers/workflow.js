@@ -1,8 +1,8 @@
 const pool = require('../config/db');
 
 /* Find the initial stage of the active workflow driving a given data table
-   (e.g. 'advertisers', 'brand_ambassadors', 'campaigns'). Mirrors the inline
-   logic already used by bookings.js/advertiserPortal.js for the `bookings` table. */
+   (e.g. 'members'). Used by members.js and memberPortal.js when a record
+   enters its approval workflow. */
 async function getInitialStage(dataTable) {
   const [rows] = await pool.query(
     `SELECT w.id AS workflow_id, ws.id AS stage_id, ws.stage_name, w.process_type_id, ws.assign_ref_no
@@ -78,7 +78,7 @@ async function validateTransition(transitionId, workflowId, fromStageId) {
 }
 
 /* Given a destination stage name, decide the account `status` enum to apply
-   (used by advertisers/brand-ambassadors approval — 'Approved' activates the account,
+   (used by member registration approval — 'Approved' activates the account,
    'Rejected' leaves it inactive). Returns null when the stage name doesn't
    map to a status change. */
 function statusForStage(stageName) {

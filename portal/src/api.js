@@ -7,7 +7,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(cfg => {
-  const token = localStorage.getItem('advertiser_token');
+  const token = localStorage.getItem('member_token');
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;
 });
@@ -16,17 +16,14 @@ api.interceptors.response.use(
   r => r,
   err => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('advertiser_token');
-      localStorage.removeItem('advertiser_data');
-      // Only force-navigate if we're actually inside the advertiser portal.
-      // This also runs from a background session check on mount (App-wide
-      // provider), which fires on every route — a stale/expired token must not
-      // hijack an unrelated public page like /register or the brand-ambassador side.
+      localStorage.removeItem('member_token');
+      localStorage.removeItem('member_data');
+      // Only force-navigate from inside the portal. This also runs from a
+      // background session check on mount (App-wide provider), which fires on
+      // every route — a stale/expired token must not hijack a public page.
       const path = window.location.pathname;
-      const isPublicOrOtherPortal =
-        path === '/login' || path === '/register' ||
-        path.startsWith('/brand-ambassador') || path.startsWith('/receipt');
-      if (!isPublicOrOtherPortal) window.location.href = '/login';
+      const isPublic = path === '/login' || path === '/register';
+      if (!isPublic) window.location.href = '/login';
     }
     return Promise.reject(err);
   }

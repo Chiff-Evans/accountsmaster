@@ -25,7 +25,7 @@ const authenticate = async (req, res, next) => {
 };
 
 // Checks that the user's roles grant the required permission on the menu matched by viewPath.
-// Usage: requirePermission('/orders', 'can_edit')
+// Usage: requirePermission('/members', 'can_edit')
 const requirePermission = (viewPath, permission) => async (req, res, next) => {
   try {
     const roleIds = req.user?.roles;

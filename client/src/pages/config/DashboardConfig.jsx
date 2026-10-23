@@ -4,15 +4,15 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import api from '../../api';
 
 const SECTIONS = [
-  { key: 'stat_campaigns',        label: 'Campaigns',                    group: 'Stat Cards' },
-  { key: 'stat_revenue',          label: 'Revenue',                      group: 'Stat Cards' },
-  { key: 'stat_expenditure',      label: 'Expenditure',                  group: 'Stat Cards' },
-  { key: 'stat_advertisers',      label: 'Active Advertisers',           group: 'Stat Cards' },
-  { key: 'stat_brand_ambassadors', label: 'Active Brand Ambassadors',    group: 'Stat Cards' },
-  { key: 'chart_trend',           label: 'Revenue vs Expenditure Trend', group: 'Charts' },
-  { key: 'chart_pipeline',        label: 'Campaigns Pipeline',           group: 'Charts' },
-  { key: 'chart_top_campaigns',   label: 'Top Campaigns by Revenue',     group: 'Charts' },
-  { key: 'chart_recent_campaigns', label: 'Recent Campaigns Table',      group: 'Charts' },
+  { key: 'stat_members',              label: 'Active Members',                group: 'Stat Cards' },
+  { key: 'stat_deposits',             label: 'Deposits',                      group: 'Stat Cards' },
+  { key: 'stat_withdrawals',          label: 'Withdrawals',                   group: 'Stat Cards' },
+  { key: 'stat_net',                  label: 'Net Contributions',             group: 'Stat Cards' },
+  { key: 'stat_target',               label: 'Target Progress',               group: 'Stat Cards' },
+  { key: 'chart_trend',               label: 'Deposits vs Withdrawals Trend', group: 'Charts' },
+  { key: 'chart_by_type',             label: 'Transactions by Type',          group: 'Charts' },
+  { key: 'chart_top_members',         label: 'Top Members by Contribution',   group: 'Charts' },
+  { key: 'chart_recent_transactions', label: 'Recent Transactions Table',     group: 'Charts' },
 ];
 
 const GROUPS = [...new Set(SECTIONS.map(s => s.group))];
