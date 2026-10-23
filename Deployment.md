@@ -159,6 +159,11 @@ APACHE
     sudo systemctl reload apache2
 
 # Do the same for portal
+
+# SSL Certificate 
+sudo certbot --apache \
+-d accountsmaster.masterbrainssolutions.com \
+-d accountsmasterportal.masterbrainssolutions.com 
     
 # STEP 4 — VERIFY
 
