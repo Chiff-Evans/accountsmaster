@@ -154,9 +154,9 @@ APACHE
     
 # STEP 3 — ENABLE THE SITE
 
-    sudo a2ensite salesmaster.conf
-    sudo a2dissite 000-default.conf
-    sudo systemctl reload apache2
+sudo a2ensite accountsmaster.conf
+sudo apachectl configtest
+sudo systemctl reload apache2
 
 # Do the same for portal
 
