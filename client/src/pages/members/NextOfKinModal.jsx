@@ -84,7 +84,7 @@ export default function NextOfKinModal({ member, onClose }) {
         footer={null}
         width={860}
         centered
-        destroyOnClose
+        destroyOnHidden
       >
         <CrudTable
           title="Next of Kin"

@@ -78,7 +78,7 @@ async function validateTransition(transitionId, workflowId, fromStageId) {
 }
 
 /* Given a destination stage name, decide the account `status` enum to apply
-   (used by members/brand-ambassadors approval — 'Approved' activates the account,
+   (used by member registration approval — 'Approved' activates the account,
    'Rejected' leaves it inactive). Returns null when the stage name doesn't
    map to a status change. */
 function statusForStage(stageName) {
