@@ -16,7 +16,8 @@ const { valueOfPeriodCents } = require('./contributionPeriod');
    extended past what was paid), which the next deposit settles first.
 
    Migrated transactions (is_migrated = 1) are history keyed in as-is and are
-   never part of the chain.
+   never part of the chain; neither are internal accounts (members.is_human =
+   0 — interest, taxes, ...), which rates and targets don't apply to.
 
    The chain is a member's deposits that have a rate snapshot, in cover
    order (CHAIN_KEY, then id). A deposit too small for one unit has no To
@@ -32,6 +33,14 @@ const fromCents = c => (c / 100).toFixed(2);
 // inherit" — they must agree. Uncovered deposits have no to_date but still
 // sort by their start (or, failing that, their transaction date).
 const CHAIN_KEY = 'COALESCE(t.from_date, t.transaction_date)';
+
+// Internal account (members.is_human = 0)? Rates, targets and the credit
+// ledger don't apply to these.
+async function isInternalMember(conn, memberId) {
+  if (!memberId) return false;
+  const [[row]] = await conn.query('SELECT is_human FROM members WHERE id=?', [memberId]);
+  return row ? Number(row.is_human) === 0 : false;
+}
 
 // Is this transaction type a deposit? (Transaction Types parameter value name)
 async function isDepositTypeId(conn, typeId) {
@@ -49,6 +58,7 @@ async function recalcMemberLedger(conn, memberId) {
             DATE_FORMAT(t.to_date, '%Y-%m-%d')   AS to_date
      FROM transactions t
      JOIN parameter_values tt ON t.transaction_type_id = tt.id
+     JOIN members m ON m.id = t.member_id AND m.is_human = 1
      WHERE t.member_id = ? AND tt.paramater_value LIKE 'deposit%'
        AND t.is_migrated = 0
        AND t.rate_amount IS NOT NULL AND t.rate_unit IS NOT NULL
@@ -94,4 +104,4 @@ async function creditBroughtForwardCents(conn, memberId, excludeId = 0) {
   return toCents(row?.credit_carried_forward);
 }
 
-module.exports = { recalcMemberLedger, creditBroughtForwardCents, isDepositTypeId };
+module.exports = { recalcMemberLedger, creditBroughtForwardCents, isDepositTypeId, isInternalMember };

@@ -95,6 +95,13 @@ export default function Transactions() {
       setSuggestion(null); setSuggesting(false);
       return;
     }
+    // Internal accounts (interest, taxes, ...): rates and targets don't apply,
+    // so nothing is calculated — just say so.
+    if (members.find(m => m.id === member_id)?.is_human === 0) {
+      suggestSeq.current += 1;
+      setSuggestion({ internal: true }); setSuggesting(false);
+      return;
+    }
     suggestTimer.current = setTimeout(async () => {
       const seq = ++suggestSeq.current;
       setSuggesting(true);
@@ -202,7 +209,8 @@ export default function Transactions() {
 
   const memberOptions = members.map(m => ({
     value: m.id,
-    label: m.member_ref_no ? `${m.member_name} (${m.member_ref_no})` : m.member_name,
+    label: (m.member_ref_no ? `${m.member_name} (${m.member_ref_no})` : m.member_name)
+      + (m.is_human === 0 ? ' · Internal' : ''),
   }));
   const typeOptions = transactionTypes.map(t => ({ value: t.id, label: t.paramater_value }));
 
@@ -334,7 +342,16 @@ export default function Transactions() {
           {!suggesting && suggestion?.error && (
             <Alert type="error" showIcon message={suggestion.error} style={{ marginBottom: 20 }} />
           )}
-          {!suggesting && suggestion && !suggestion.error && !suggestion.available && (
+          {!suggesting && suggestion?.internal && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 20 }}
+              message="Internal account — nothing is calculated"
+              description="Rates and targets don't apply to internal accounts (interest, taxes, …), so From/To dates and credit/arrears aren't worked out. Enter the dates yourself if needed."
+            />
+          )}
+          {!suggesting && suggestion && !suggestion.error && !suggestion.internal && !suggestion.available && (
             <Alert
               type="warning"
               showIcon

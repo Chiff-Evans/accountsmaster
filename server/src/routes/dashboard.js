@@ -63,11 +63,14 @@ router.get("/summary", async (req, res, next) => {
 
     let targetProgress = null;
     if (target) {
+      // Only real members owe the target — internal accounts (is_human = 0:
+      // interest, taxes, ...) are left out, same as Stake-Holders > Statistics.
       const [perMember] = await pool.query(
         `SELECT m.id, ${depositSum()} - ${withdrawalSum()} AS net
          FROM members m
          LEFT JOIN transactions t      ON t.member_id = m.id
          LEFT JOIN parameter_values tt ON t.transaction_type_id = tt.id
+         WHERE m.is_human = 1
          GROUP BY m.id`
       );
       const targetAmount = Number(target.target_amount);

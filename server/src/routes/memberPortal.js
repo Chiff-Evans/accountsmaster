@@ -279,10 +279,13 @@ router.post('/auth/change-password', async (req, res, next) => {
      overpayment = max(net - target, 0). ── */
 router.get('/statement', async (req, res, next) => {
   try {
-    const [[target]] = await pool.query(
+    // Internal accounts (is_human = 0) aren't held to the target.
+    const [[who]] = await pool.query('SELECT is_human FROM members WHERE id=?', [req.member.id]);
+    const [[activeTarget]] = await pool.query(
       `SELECT target_amount, DATE_FORMAT(target_date, '%Y-%m-%d') AS target_date
        FROM targets WHERE is_active = 1 LIMIT 1`
     );
+    const target = Number(who?.is_human) === 0 ? null : activeTarget;
     const [[tx]] = await pool.query(
       `SELECT ${depositSum()} AS deposits, ${withdrawalSum()} AS withdrawals, COUNT(t.id) AS transaction_count,
               DATE_FORMAT(MAX(t.transaction_date), '%Y-%m-%d') AS last_transaction_date

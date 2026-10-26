@@ -5,7 +5,7 @@ const { generateRefNo } = require('../helpers/refNumber');
 const { notify } = require('../helpers/notify');
 const { encodeId } = require('../utils/hashids');
 const { coverPeriod, unitOf, dayAfter } = require('../helpers/contributionPeriod');
-const { recalcMemberLedger, creditBroughtForwardCents, isDepositTypeId } = require('../helpers/contributionLedger');
+const { recalcMemberLedger, creditBroughtForwardCents, isDepositTypeId, isInternalMember } = require('../helpers/contributionLedger');
 
 router.use(authenticate);
 
@@ -99,9 +99,17 @@ router.get('/period-suggestion', async (req, res, next) => {
     if (hasAmount && !(amount > 0)) return res.status(400).json({ message: 'amount must be greater than zero' });
 
     const [[member]] = await pool.query(
-      `SELECT DATE_FORMAT(reg_date, '%Y-%m-%d') AS reg_date FROM members WHERE id = ?`, [memberId]
+      `SELECT DATE_FORMAT(reg_date, '%Y-%m-%d') AS reg_date, is_human FROM members WHERE id = ?`, [memberId]
     );
     if (!member) return res.status(404).json({ message: 'Member not found' });
+    // Internal accounts (interest, taxes, ...): rates and targets don't apply,
+    // so nothing is calculated — staff enter the dates themselves.
+    if (Number(member.is_human) === 0) {
+      return res.json({
+        available: false, internal: true,
+        reason: 'Internal account — rates and targets don\'t apply, so dates and credit aren\'t calculated. Enter the dates yourself.',
+      });
+    }
 
     // Editing (exclude_id): price with that transaction's own recorded rate.
     const [[editingTx]] = excludeId
@@ -239,10 +247,12 @@ function validate(body) {
    rate it was first recorded with; a new one takes the active rate. Every
    deposit is in the credit ledger — one too small for a unit has no To Date
    but still carries its amount forward. Non-deposits are outside it. */
-async function rateSnapshotFor(conn, { transaction_type_id, is_migrated }, existing) {
+async function rateSnapshotFor(conn, { transaction_type_id, is_migrated, member_id }, existing) {
   const none = { rate_id: null, rate_amount: null, rate_unit: null };
   // Migrated records keep exactly what was entered — never priced or ledgered.
   if (is_migrated) return none;
+  // Internal accounts (interest, taxes, ...) aren't subject to rates/targets.
+  if (await isInternalMember(conn, member_id)) return none;
   if (!await isDepositTypeId(conn, transaction_type_id)) return none;
   const rate = await rateForTransaction(conn, existing);
   return rate ? { rate_id: rate.id, rate_amount: rate.amount, rate_unit: rate.unit } : none;

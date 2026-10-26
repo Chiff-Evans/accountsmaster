@@ -15,7 +15,8 @@
 --     members (Martin Irungu, Anonymous Person) are NOT migrated; they have
 --     no contributions. The system accounts "Credit Interest" and
 --     "Deductions Done" ARE migrated, so the interest/deduction entries stay
---     on the books.
+--     on the books — as internal accounts (is_human = 0, from the legacy
+--     is_human flag), which aren't held to the target.
 --   * 168 transactions (ids 1–168, TRN-00001 … TRN-00168) in legacy
 --     contribution id order, so legacy #N becomes id N / TRN-0000N,
 --     as MIGRATED records: dates kept exactly as recorded, no rate snapshot,
@@ -75,7 +76,13 @@ DELIMITER ;
 CALL `legacy_migration_guard`();
 DROP PROCEDURE `legacy_migration_guard`;
 
--- ── 1. Traceability columns — added only if missing ──
+-- ── 1. Columns this script fills — added only if missing ──
+SET @ddl := IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'is_human') = 0,
+  'ALTER TABLE `members` ADD COLUMN `is_human` TINYINT(1) NOT NULL DEFAULT 1 AFTER `other_details`',
+  'DO 0');
+PREPARE ddl FROM @ddl; EXECUTE ddl; DEALLOCATE PREPARE ddl;
+
 SET @ddl := IF((SELECT COUNT(*) FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'legacy_id') = 0,
   'ALTER TABLE `members` ADD COLUMN `legacy_id` INT DEFAULT NULL, ADD UNIQUE KEY `uq_members_legacy_id` (`legacy_id`)',
@@ -469,7 +476,7 @@ START TRANSACTION;
 -- ── 5. Members (ids 1..n in legacy order; Blocked members are skipped) ──
 INSERT INTO `members`
   (`legacy_id`, `member_ref_no`, `member_name`, `firstname`, `lastname`, `position_id`, `gender_id`, `id_number`,
-   `phone`, `email`, `reg_date`, `reg_fee`, `other_details`, `status`, `workflow_id`, `workflow_stage_id`)
+   `phone`, `email`, `reg_date`, `reg_fee`, `other_details`, `is_human`, `status`, `workflow_id`, `workflow_stage_id`)
 SELECT
   l.id,
   CONCAT(rn.prefix,
@@ -488,6 +495,7 @@ SELECT
   STR_TO_DATE(l.reg_date, '%d-%m-%Y'),
   CAST(NULLIF(TRIM(l.reg_fee), '') AS DECIMAL(12,2)),
   NULLIF(NULLIF(TRIM(l.other_details), ''), 'N/A'),
+  IF(LOWER(TRIM(l.is_human)) = 'false', 0, 1),
   CASE l.status WHEN 'Active' THEN 'active' WHEN 'Withdrawn' THEN 'inactive' ELSE 'inactive' END,
   wf.id,
   CASE l.status WHEN 'Withdrawn' THEN COALESCE(st_withdrawn.id, st_approved.id) ELSE st_approved.id END

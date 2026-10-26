@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Button, Dropdown,
-  message, Typography, Popover, Checkbox, Spin, Space,
+  message, Typography, Popover, Checkbox, Spin, Space, Radio,
 } from 'antd';
 import dayjs from 'dayjs';
 import {
@@ -87,6 +87,7 @@ export default function Members() {
         reg_date:      vals.reg_date ? vals.reg_date.format('YYYY-MM-DD') : null,
         reg_fee:       vals.reg_fee ?? null,
         other_details: vals.other_details || null,
+        is_human:      vals.is_human !== false,
       };
       if (editing) payload.status = vals.status || 'active';
 
@@ -168,7 +169,10 @@ export default function Members() {
   const allColumns = [
     { title: 'Ref No',   dataIndex: 'member_ref_no', key: 'ref', width: 110,
       render: v => <Tag color="blue">{v}</Tag> },
-    { title: 'Name',     dataIndex: 'member_name', key: 'name' },
+    { title: 'Name',     dataIndex: 'member_name', key: 'name',
+      render: (v, r) => r.is_human === 0
+        ? <Space size={4} wrap>{v}<Tag color="purple" style={{ margin: 0 }}>Internal</Tag></Space>
+        : v },
     { title: 'Position', dataIndex: 'position_name', key: 'position', mobileExpanded: true,
       render: v => v ? <Tag>{v}</Tag> : null },
     { title: 'ID Number', dataIndex: 'id_number', key: 'idno', mobileExpanded: true },
@@ -255,12 +259,13 @@ export default function Members() {
             position_id: positions.find(p => p.is_default)?.id,
             gender_id:   genders.find(g => g.is_default)?.id,
             reg_date:    dayjs(),
+            is_human:    true,
           });
           setOpen(true);
         }}
         onEdit={r => {
           setEditing(r);
-          form.setFieldsValue({ ...r, reg_date: r.reg_date ? dayjs(r.reg_date) : null });
+          form.setFieldsValue({ ...r, reg_date: r.reg_date ? dayjs(r.reg_date) : null, is_human: r.is_human !== 0 });
           setOpen(true);
         }}
         onDelete={async r => {
@@ -346,6 +351,19 @@ export default function Members() {
           <LabelField label="Other Details">
             <Form.Item name="other_details" style={{ marginBottom: 20 }}>
               <Input.TextArea rows={4} />
+            </Form.Item>
+          </LabelField>
+
+          <LabelField label="Is Human">
+            <Form.Item
+              name="is_human"
+              extra="Choose No for internal accounts that track things like interest or taxes — they aren't held to the target."
+              style={{ marginBottom: 20 }}
+            >
+              <Radio.Group>
+                <Radio value={true}>Yes</Radio>
+                <Radio value={false}>No</Radio>
+              </Radio.Group>
             </Form.Item>
           </LabelField>
 
