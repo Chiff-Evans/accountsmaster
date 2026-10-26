@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Button, Dropdown,
-  message, Typography, Popover, Checkbox, Spin, Space, Radio, Switch,
+  message, Typography, Popover, Checkbox, Spin, Space, Radio, Switch, Tooltip,
 } from 'antd';
 import dayjs from 'dayjs';
 import {
   LockOutlined, UnlockOutlined, StopOutlined,
-  MoreOutlined, KeyOutlined, TableOutlined, SwapOutlined, TeamOutlined,
+  MoreOutlined, KeyOutlined, TableOutlined, SwapOutlined, TeamOutlined, QuestionCircleOutlined,
 } from '@ant-design/icons';
 import CrudTable from '../../components/common/CrudTable';
 import LabelField from '../../components/common/LabelField';
@@ -378,27 +378,35 @@ export default function Members() {
             </Form.Item>
           </LabelField>
 
-          {/* Internal accounts can be the source of the portal's Group Fund figures. */}
+          {/* Internal accounts can be the source of the portal's Group Fund figures.
+              Same toggle panel look as the Workflow stage flags. */}
           {isHumanWatch === false && (
-            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 20 }}>
-              <Form.Item
-                name="is_interest_account"
-                valuePropName="checked"
-                label="Interest Account"
-                tooltip="Its deposits are the Interest figure members see in the portal, and its transactions make up the Interest statement."
-                style={{ marginBottom: 0 }}
-              >
-                <Switch />
-              </Form.Item>
-              <Form.Item
-                name="is_deductions_account"
-                valuePropName="checked"
-                label="Deductions Account"
-                tooltip="Its withdrawals are the Deductions / Taxes figure members see in the portal, and its transactions make up that statement."
-                style={{ marginBottom: 0 }}
-              >
-                <Switch />
-              </Form.Item>
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr',
+              border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden', marginBottom: 20,
+            }}>
+              {[
+                { name: 'is_interest_account',   label: 'Interest Account',   color: '#52c41a',
+                  help: 'Its deposits are the Interest figure members see in the portal, and its transactions make up the Interest statement.' },
+                { name: 'is_deductions_account', label: 'Deductions Account', color: '#fa541c',
+                  help: 'Its withdrawals are the Deductions / Taxes figure members see in the portal, and its transactions make up that statement.' },
+              ].map(({ name, label, color, help }, i) => (
+                <div key={name} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                  padding: '10px 14px', background: '#fafafa',
+                  borderRight: i === 0 ? '1px solid #f0f0f0' : 'none',
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {label}
+                    <Tooltip title={help}>
+                      <QuestionCircleOutlined style={{ color: '#bfbfbf', cursor: 'help' }} />
+                    </Tooltip>
+                  </div>
+                  <Form.Item name={name} valuePropName="checked" noStyle>
+                    <Switch />
+                  </Form.Item>
+                </div>
+              ))}
             </div>
           )}
 

@@ -57,7 +57,7 @@ export default function PortalSettings() {
   if (!data) return <Spin style={{ display: 'block', margin: '40px auto' }} />;
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div>
       <Typography.Title level={4} style={{ marginBottom: 4, textAlign: isMobile ? 'center' : 'left' }}>
         Portal Settings
       </Typography.Title>
