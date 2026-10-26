@@ -18,6 +18,7 @@ import FinancialReport from './pages/reports/FinancialReport';
 import Parameters from './pages/config/Parameters';
 import Targets from './pages/config/Targets';
 import ContributionRates from './pages/config/ContributionRates';
+import PortalSettings from './pages/config/PortalSettings';
 import Transactions from './pages/transactions/Transactions';
 
 function ProtectedRoute({ children }) {
@@ -49,6 +50,7 @@ export default function App() {
                     <Route path="/config/parameters"    element={<Parameters />} />
                     <Route path="/config/targets"       element={<Targets />} />
                     <Route path="/config/contribution-rates" element={<ContributionRates />} />
+                    <Route path="/config/portal-settings" element={<PortalSettings />} />
                     <Route path="/users"                 element={<Users />} />
                     <Route path="/stock/expenditure"     element={<Expenditure />} />
                     <Route path="/members"            element={<Members />} />

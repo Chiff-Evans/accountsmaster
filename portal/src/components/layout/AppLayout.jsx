@@ -26,6 +26,8 @@ export default function AppLayout({ children }) {
   }, []);
 
   const displayName = member?.member_name || '';
+  // Header shows just the first name; the avatar keeps the full initials.
+  const firstName = displayName.trim().split(/\s+/)[0] || '';
   const initials = (displayName || '').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const isProfileActive = pathname === '/profile';
 
@@ -64,7 +66,7 @@ export default function AppLayout({ children }) {
           >
             <div style={{ textAlign: 'right' }}>
               <div style={{ color: '#fff', fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>
-                {displayName}
+                {firstName}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10 }}>
                 {member?.member_ref_no}

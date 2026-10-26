@@ -16,6 +16,9 @@ const fromCents = c => c / 100;
      net         = deposits - withdrawals
      balance     = max(target - net, 0)
      overpayment = max(net - target, 0)
+   Internal accounts (is_human = 0 — interest, taxes, ...) don't owe the
+   target: their deposits/withdrawals are reported, but balance and
+   overpayment are null and left out of those totals.
    (Deposit/Withdraw classification: see helpers/transactionTypes.js) */
 router.get('/', canView, async (req, res, next) => {
   try {
@@ -25,14 +28,14 @@ router.get('/', canView, async (req, res, next) => {
     );
 
     const [rows] = await pool.query(
-      `SELECT m.id, m.member_ref_no, m.member_name,
+      `SELECT m.id, m.member_ref_no, m.member_name, m.is_human,
               ${depositSum()} AS deposits,
               ${withdrawalSum()} AS withdrawals
        FROM members m
        LEFT JOIN transactions t      ON t.member_id = m.id
        LEFT JOIN parameter_values tt ON t.transaction_type_id = tt.id
-       GROUP BY m.id, m.member_ref_no, m.member_name
-       ORDER BY m.member_name`
+       GROUP BY m.id, m.member_ref_no, m.member_name, m.is_human
+       ORDER BY m.is_human DESC, m.member_name`
     );
 
     const targetCents = target ? toCents(target.target_amount) : null;
@@ -42,8 +45,9 @@ router.get('/', canView, async (req, res, next) => {
       const deposits = toCents(r.deposits);
       const withdrawals = toCents(r.withdrawals);
       const net = deposits - withdrawals;
-      const balance = targetCents == null ? null : Math.max(targetCents - net, 0);
-      const overpayment = targetCents == null ? null : Math.max(net - targetCents, 0);
+      const assessed = targetCents != null && r.is_human !== 0;
+      const balance = assessed ? Math.max(targetCents - net, 0) : null;
+      const overpayment = assessed ? Math.max(net - targetCents, 0) : null;
 
       totals.deposits += deposits;
       totals.withdrawals += withdrawals;
@@ -55,6 +59,7 @@ router.get('/', canView, async (req, res, next) => {
         id: r.id,
         member_ref_no: r.member_ref_no,
         member_name: r.member_name,
+        is_human: r.is_human,
         deposits: fromCents(deposits),
         withdrawals: fromCents(withdrawals),
         net: fromCents(net),

@@ -6,6 +6,7 @@ const { generateRefNo } = require('../helpers/refNumber');
 const { getInitialStage, getWorkflowStages, recordHistory, validateTransition, statusForStage } = require('../helpers/workflow');
 const { notify } = require('../helpers/notify');
 const { sendMail, escapeHtml } = require('../helpers/mailer');
+const { recalcMemberLedger } = require('../helpers/contributionLedger');
 
 router.use(authenticate);
 
@@ -15,7 +16,7 @@ const canDelete = requirePermission('/members', 'can_delete');
 
 const LIST_SELECT = `
   SELECT c.id, c.member_ref_no, c.member_name, c.firstname, c.lastname, c.position_id, c.id_number,
-         c.gender_id, c.phone, c.email, DATE_FORMAT(c.reg_date, '%Y-%m-%d') AS reg_date, c.reg_fee, c.other_details, c.username, (c.password_hash IS NOT NULL) AS has_password, c.status,
+         c.gender_id, c.phone, c.email, DATE_FORMAT(c.reg_date, '%Y-%m-%d') AS reg_date, c.reg_fee, c.other_details, c.is_human, c.is_interest_account, c.is_deductions_account, c.username, (c.password_hash IS NOT NULL) AS has_password, c.status,
          c.loyalty_points, c.workflow_id, c.workflow_stage_id, c.created_at, c.updated_at,
          pos.paramater_value AS position_name, gen.paramater_value AS gender_name,
          ws.stage_name, ws.stage_color, ws.responsible_group
@@ -110,6 +111,13 @@ router.post('/', canCreate, async (req, res, next) => {
   try {
     const { member_name, position_id, id_number, phone, email, gender_id, reg_date, reg_fee, other_details } = req.body;
     if (!member_name) return res.status(400).json({ message: 'Member name is required' });
+    // Real member unless explicitly marked as an internal account.
+    const is_human = req.body.is_human === false || req.body.is_human === 0 || req.body.is_human === '0' ? 0 : 1;
+    // Interest / deductions flags only make sense on internal accounts — a real
+    // member can never be the source of the portal's Group Fund figures.
+    const flag = v => (v === true || v === 1 || v === '1' ? 1 : 0);
+    const is_interest_account = is_human ? 0 : flag(req.body.is_interest_account);
+    const is_deductions_account = is_human ? 0 : flag(req.body.is_deductions_account);
 
     const initStage = await getInitialStage('members');
     const member_ref_no = initStage?.assign_ref_no ? await generateRefNo('member_registration') : null;
@@ -117,11 +125,13 @@ router.post('/', canCreate, async (req, res, next) => {
     const [result] = await pool.query(
       `INSERT INTO members
          (member_ref_no, member_name, firstname, lastname, position_id, id_number, phone, email, gender_id,
-          reg_date, reg_fee, other_details, workflow_id, workflow_stage_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          reg_date, reg_fee, other_details, is_human, is_interest_account, is_deductions_account,
+          workflow_id, workflow_stage_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [member_ref_no, member_name, member_name, '', position_id || null, id_number || null,
        phone || null, email || null, gender_id || null, reg_date || null,
-       reg_fee === '' || reg_fee == null ? null : reg_fee, other_details || null,
+       reg_fee === '' || reg_fee == null ? null : reg_fee, other_details || null, is_human,
+       is_interest_account, is_deductions_account,
        initStage?.workflow_id || null, initStage?.stage_id || null]
     );
 
@@ -142,6 +152,12 @@ router.put('/:id', canEdit, async (req, res, next) => {
   try {
     const { member_name, position_id, id_number, phone, email, gender_id, reg_date, reg_fee, other_details, status } = req.body;
     if (!member_name) return res.status(400).json({ message: 'Member name is required' });
+    const is_human = req.body.is_human === false || req.body.is_human === 0 || req.body.is_human === '0' ? 0 : 1;
+    // Interest / deductions flags only make sense on internal accounts — a real
+    // member can never be the source of the portal's Group Fund figures.
+    const flag = v => (v === true || v === 1 || v === '1' ? 1 : 0);
+    const is_interest_account = is_human ? 0 : flag(req.body.is_interest_account);
+    const is_deductions_account = is_human ? 0 : flag(req.body.is_deductions_account);
 
     const [[existing]] = await pool.query('SELECT id FROM members WHERE id=?', [req.params.id]);
     if (!existing) return res.status(404).json({ message: 'Not found' });
@@ -149,12 +165,15 @@ router.put('/:id', canEdit, async (req, res, next) => {
     await pool.query(
       `UPDATE members SET
          member_name=?, firstname=?, position_id=?, id_number=?, phone=?, email=?, gender_id=?,
-         reg_date=?, reg_fee=?, other_details=?, status=?
+         reg_date=?, reg_fee=?, other_details=?, is_human=?, is_interest_account=?, is_deductions_account=?, status=?
        WHERE id=?`,
       [member_name, member_name, position_id || null, id_number || null, phone || null, email || null,
        gender_id || null, reg_date || null, reg_fee === '' || reg_fee == null ? null : reg_fee,
-       other_details || null, status || 'active', req.params.id]
+       other_details || null, is_human, is_interest_account, is_deductions_account, status || 'active', req.params.id]
     );
+    // Becoming (or ceasing to be) an internal account takes the member out of
+    // (or back into) the credit ledger — refresh their balances now.
+    await recalcMemberLedger(pool, req.params.id);
     const [rows] = await pool.query(`${LIST_SELECT} WHERE c.id=? GROUP BY c.id`, [req.params.id]);
     res.json(rows[0]);
   } catch (err) { next(err); }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Row, Col, Button, Spin, Typography, Empty, Progress, Alert } from 'antd';
-import { ArrowDownOutlined, ArrowUpOutlined, RightOutlined, AimOutlined } from '@ant-design/icons';
+import { ArrowDownOutlined, ArrowUpOutlined, RightOutlined, AimOutlined, BankOutlined, DownOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import TransactionCard from '../components/TransactionCard';
@@ -12,6 +12,8 @@ export default function Dashboard() {
   const navigate    = useNavigate();
   const [statement, setStatement] = useState(null);
   const [recent, setRecent] = useState([]);
+  const [fund, setFund] = useState({}); // only the figures staff chose to share
+  const [fundOpen, setFundOpen] = useState(false); // collapsed until the member asks
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
@@ -20,6 +22,8 @@ export default function Dashboard() {
       .then(([s, t]) => { setStatement(s.data); setRecent(t.data.data); })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
+    // Optional extra — never blocks or breaks the page if it fails.
+    api.get('/fund-summary').then(r => setFund(r.data || {})).catch(() => {});
   }, []);
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>;
@@ -27,6 +31,12 @@ export default function Dashboard() {
 
   const target = statement?.target;
   const overpaid = statement?.overpayment > 0;
+  // Group-wide figures (Configurations > Portal Settings in the core app).
+  const fundRows = [
+    'total_balance' in fund && { label: 'Total Balance',      value: fund.total_balance, color: '#14418f', strong: true },
+    'interest'      in fund && { label: 'Interest Earned',    value: fund.interest,      color: '#16a34a', to: '/fund/interest' },
+    'deductions'    in fund && { label: 'Deductions / Taxes', value: fund.deductions,    color: '#c2410c', to: '/fund/deductions' },
+  ].filter(Boolean);
 
   return (
     <div className="page-content">
@@ -94,6 +104,45 @@ export default function Dashboard() {
         ))}
       </Row>
 
+      {/* Group fund — only figures staff switched on; collapsed until tapped */}
+      {fundRows.length > 0 && (
+        <div style={styles.fundCard}>
+          <button
+            type="button"
+            onClick={() => setFundOpen(o => !o)}
+            aria-expanded={fundOpen}
+            aria-controls="group-fund-figures"
+            style={styles.fundHeader}
+          >
+            <BankOutlined style={{ color: '#14418f', fontSize: 16 }} />
+            <Typography.Text strong style={{ flex: 1, textAlign: 'left' }}>Group Fund</Typography.Text>
+            <span style={{ fontSize: 12, color: '#8c8c8c' }}>{fundOpen ? 'Hide' : 'View'}</span>
+            <DownOutlined style={{ fontSize: 11, color: '#8c8c8c', transition: 'transform 0.2s', transform: fundOpen ? 'rotate(180deg)' : 'none' }} />
+          </button>
+          {fundOpen && (
+            <div id="group-fund-figures" style={{ marginTop: 8 }}>
+              {fundRows.map(r => {
+                const value = <span style={{ fontWeight: r.strong ? 800 : 700, fontSize: r.strong ? 16 : 14, color: r.color }}>{money(r.value)}</span>;
+                // Interest / deductions open their statement.
+                return r.to ? (
+                  <button key={r.label} type="button" onClick={() => navigate(r.to)} style={{ ...styles.fundRow, ...styles.fundLink }}>
+                    <span style={{ color: '#595959' }}>{r.label}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {value}<RightOutlined style={{ fontSize: 11, color: '#bfbfbf' }} />
+                    </span>
+                  </button>
+                ) : (
+                  <div key={r.label} style={styles.fundRow}>
+                    <span style={{ color: '#595959' }}>{r.label}</span>
+                    {value}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Recent transactions */}
       <div style={styles.sectionHeader}>
         <Typography.Text strong>Recent Transactions</Typography.Text>
@@ -112,6 +161,19 @@ export default function Dashboard() {
 }
 
 const styles = {
+  fundCard: {
+    background: '#fff', borderRadius: 14, padding: '14px 16px', marginBottom: 20,
+    border: '1px solid #14418f22', boxShadow: '0 2px 10px #14418f14',
+  },
+  fundHeader: {
+    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit',
+  },
+  fundRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '5px 0', borderTop: '1px solid #f5f5f5' },
+  fundLink: {
+    width: '100%', alignItems: 'center', background: 'none', cursor: 'pointer', font: 'inherit',
+    border: 'none', borderTop: '1px solid #f5f5f5', textAlign: 'left',
+  },
   greeting: {
     background: 'linear-gradient(135deg, #14418f 0%, #0f7a6e 50%, #22c55e 100%)',
     borderRadius: 14, padding: '20px 18px', marginBottom: 16, color: '#fff',

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Button, Dropdown,
-  message, Typography, Popover, Checkbox, Spin, Space,
+  message, Typography, Popover, Checkbox, Spin, Space, Radio, Switch, Tooltip,
 } from 'antd';
 import dayjs from 'dayjs';
 import {
   LockOutlined, UnlockOutlined, StopOutlined,
-  MoreOutlined, KeyOutlined, TableOutlined, SwapOutlined, TeamOutlined,
+  MoreOutlined, KeyOutlined, TableOutlined, SwapOutlined, TeamOutlined, QuestionCircleOutlined,
 } from '@ant-design/icons';
 import CrudTable from '../../components/common/CrudTable';
 import LabelField from '../../components/common/LabelField';
@@ -37,10 +37,12 @@ export default function Members() {
   const [open, setOpen]         = useState(false);
   const [editing, setEditing]   = useState(null);
   const [pwdModal, setPwdModal] = useState(false);
-  const [hiddenCols, setHiddenCols] = useState(new Set(['email', 'other']));
+  const [hiddenCols, setHiddenCols] = useState(new Set(['email', 'other', 'idno', 'regfee', 'gender']));
   const [stages, setStages] = useState([]);
   const [stageFilter, setStageFilter] = useState(null);
   const [form]    = Form.useForm();
+  // Interest / deductions switches only apply to internal accounts.
+  const isHumanWatch = Form.useWatch('is_human', form);
   const [pwdForm] = Form.useForm();
 
   const [positions, setPositions] = useState([]); // parameter text_id 'parties-positions'
@@ -87,6 +89,10 @@ export default function Members() {
         reg_date:      vals.reg_date ? vals.reg_date.format('YYYY-MM-DD') : null,
         reg_fee:       vals.reg_fee ?? null,
         other_details: vals.other_details || null,
+        is_human:      vals.is_human !== false,
+        // Only internal accounts can be a Group Fund source (the API enforces it too).
+        is_interest_account:   vals.is_human === false && !!vals.is_interest_account,
+        is_deductions_account: vals.is_human === false && !!vals.is_deductions_account,
       };
       if (editing) payload.status = vals.status || 'active';
 
@@ -255,12 +261,21 @@ export default function Members() {
             position_id: positions.find(p => p.is_default)?.id,
             gender_id:   genders.find(g => g.is_default)?.id,
             reg_date:    dayjs(),
+            is_human:    true,
+            is_interest_account:   false,
+            is_deductions_account: false,
           });
           setOpen(true);
         }}
         onEdit={r => {
           setEditing(r);
-          form.setFieldsValue({ ...r, reg_date: r.reg_date ? dayjs(r.reg_date) : null });
+          form.setFieldsValue({
+            ...r,
+            reg_date: r.reg_date ? dayjs(r.reg_date) : null,
+            is_human: r.is_human !== 0,
+            is_interest_account: !!r.is_interest_account,
+            is_deductions_account: !!r.is_deductions_account,
+          });
           setOpen(true);
         }}
         onDelete={async r => {
@@ -348,6 +363,52 @@ export default function Members() {
               <Input.TextArea rows={4} />
             </Form.Item>
           </LabelField>
+
+          {/* Stored as members.is_human: Yes = a real member, No = an internal account. */}
+          <LabelField label="Rates and Targets Apply">
+            <Form.Item
+              name="is_human"
+              extra="Choose No for accounts that — contribution rates and targets won't apply, and nothing is auto-calculated for their transactions."
+              style={{ marginBottom: 20 }}
+            >
+              <Radio.Group>
+                <Radio value={true}>Yes</Radio>
+                <Radio value={false}>No</Radio>
+              </Radio.Group>
+            </Form.Item>
+          </LabelField>
+
+          {/* Internal accounts can be the source of the portal's Group Fund figures.
+              Same toggle panel look as the Workflow stage flags. */}
+          {isHumanWatch === false && (
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr',
+              border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden', marginBottom: 20,
+            }}>
+              {[
+                { name: 'is_interest_account',   label: 'Interest Account',   color: '#52c41a',
+                  help: 'Its deposits are the Interest figure members see in the portal, and its transactions make up the Interest statement.' },
+                { name: 'is_deductions_account', label: 'Deductions Account', color: '#fa541c',
+                  help: 'Its withdrawals are the Deductions / Taxes figure members see in the portal, and its transactions make up that statement.' },
+              ].map(({ name, label, color, help }, i) => (
+                <div key={name} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                  padding: '10px 14px', background: '#fafafa',
+                  borderRight: i === 0 ? '1px solid #f0f0f0' : 'none',
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {label}
+                    <Tooltip title={help}>
+                      <QuestionCircleOutlined style={{ color: '#bfbfbf', cursor: 'help' }} />
+                    </Tooltip>
+                  </div>
+                  <Form.Item name={name} valuePropName="checked" noStyle>
+                    <Switch />
+                  </Form.Item>
+                </div>
+              ))}
+            </div>
+          )}
 
           {editing && (
             <LabelField label="Status">

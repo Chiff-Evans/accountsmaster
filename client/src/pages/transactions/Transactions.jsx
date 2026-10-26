@@ -95,6 +95,13 @@ export default function Transactions() {
       setSuggestion(null); setSuggesting(false);
       return;
     }
+    // Internal accounts (interest, taxes, ...): rates and targets don't apply,
+    // so nothing is calculated — just say so.
+    if (members.find(m => m.id === member_id)?.is_human === 0) {
+      suggestSeq.current += 1;
+      setSuggestion({ internal: true }); setSuggesting(false);
+      return;
+    }
     suggestTimer.current = setTimeout(async () => {
       const seq = ++suggestSeq.current;
       setSuggesting(true);
@@ -188,7 +195,12 @@ export default function Transactions() {
         </Space>
       ) },
     { title: 'Member', dataIndex: 'member_name', key: 'member' },
-    { title: 'Type', dataIndex: 'transaction_type_name', key: 'type', mobileExpanded: true, render: v => v ? <Tag>{v}</Tag> : '—' },
+    { title: 'Type', dataIndex: 'transaction_type_name', key: 'type', mobileExpanded: true,
+      // Deposits green, withdrawals dark red (matched by name, like the server does).
+      render: v => !v ? '—'
+        : /^deposit/i.test(v) ? <Tag color="#389e0d">{v}</Tag>
+        : /^withdraw/i.test(v) ? <Tag color="#a8071a">{v}</Tag>
+        : <Tag>{v}</Tag> },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right', mobileAlign: 'right', render: fmtAmount },
     { title: 'From', dataIndex: 'from_date', key: 'from', mobileExpanded: true, render: fmtDate },
     { title: 'To', dataIndex: 'to_date', key: 'to', mobileExpanded: true, render: fmtDate },
@@ -334,7 +346,16 @@ export default function Transactions() {
           {!suggesting && suggestion?.error && (
             <Alert type="error" showIcon message={suggestion.error} style={{ marginBottom: 20 }} />
           )}
-          {!suggesting && suggestion && !suggestion.error && !suggestion.available && (
+          {!suggesting && suggestion?.internal && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 20 }}
+              message="Internal account — nothing is calculated"
+              description="Rates and targets don't apply to internal accounts. So From/To dates and credit/arrears aren't worked out. Enter the dates yourself if needed."
+            />
+          )}
+          {!suggesting && suggestion && !suggestion.error && !suggestion.internal && !suggestion.available && (
             <Alert
               type="warning"
               showIcon

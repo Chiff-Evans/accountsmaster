@@ -40,7 +40,7 @@ scp -r "C:\xampp\htdocs\projects\accountsmaster\client\dist\*" root@31.97.199.20
 scp -r "C:\xampp\htdocs\projects\accountsmaster\portal\dist\*" root@31.97.199.20:/var/www/html/accountsmasterportal/
 
 Backend server/ (excluding node_modules) /opt/accountsmaster/server/
-scp -r "C:\xampp\htdocs\projects\accountsmaster\server\deploy" root@31.97.199.20:/opt/accountsmaster/server/
+scp -r "C:\xampp\htdocs\projects\accountsmaster\server\deploy\*" root@31.97.199.20:/opt/accountsmaster/server/
 
 # On Ubuntu, create the directories first
 
@@ -154,11 +154,16 @@ APACHE
     
 # STEP 3 — ENABLE THE SITE
 
-    sudo a2ensite salesmaster.conf
-    sudo a2dissite 000-default.conf
-    sudo systemctl reload apache2
+sudo a2ensite accountsmaster.conf
+sudo apachectl configtest
+sudo systemctl reload apache2
 
 # Do the same for portal
+
+# SSL Certificate 
+sudo certbot --apache \
+-d accountsmaster.masterbrainssolutions.com \
+-d accountsmasterportal.masterbrainssolutions.com 
     
 # STEP 4 — VERIFY
 
