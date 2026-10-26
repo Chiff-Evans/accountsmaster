@@ -357,7 +357,7 @@ export default function Members() {
           <LabelField label="Is Human">
             <Form.Item
               name="is_human"
-              extra="Choose No for internal accounts that track things like interest or taxes — they aren't held to the target."
+              extra="Choose No for accounts that track things like interest or taxes — they aren't held to the target/rates."
               style={{ marginBottom: 20 }}
             >
               <Radio.Group>
