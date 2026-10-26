@@ -17,3 +17,14 @@ scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\client\dist\assets\*" root@31
 scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\client\dist\*"        root@31.97.199.20:/var/www/html/accountsmaster
 scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\portal\dist\assets\*" root@31.97.199.20:/var/www/html/accountsmasterportal/assets
 scp -P 22 "C:\xampp\htdocs\projects\accountsmaster\portal\dist\*"        root@31.97.199.20:/var/www/html/accountsmasterportal
+
+
+<!-- FULL DEPLOYMENT -->
+scp -r "C:\xampp\htdocs\projects\accountsmaster\server\deploy\*" root@31.97.199.20:/opt/accountsmaster/server/
+scp -r "C:\xampp\htdocs\projects\accountsmaster\server\deploy\*" root@31.97.199.20:/opt/giachuki-2016/server/
+
+
+scp -r "C:\xampp\htdocs\projects\accountsmaster\client\dist\*" root@31.97.199.20:/var/www/html/accountsmaster/
+scp -r "C:\xampp\htdocs\projects\accountsmaster\portal\dist\*" root@31.97.199.20:/var/www/html/accountsmasterportal/
+scp -r "C:\xampp\htdocs\projects\accountsmaster\client\dist\*" root@31.97.199.20:/var/www/html/giachuki-2016/
+scp -r "C:\xampp\htdocs\projects\accountsmaster\portal\dist\*" root@31.97.199.20:/var/www/html/giachuki2016/

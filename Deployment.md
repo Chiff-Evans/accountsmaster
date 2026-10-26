@@ -40,7 +40,7 @@ scp -r "C:\xampp\htdocs\projects\accountsmaster\client\dist\*" root@31.97.199.20
 scp -r "C:\xampp\htdocs\projects\accountsmaster\portal\dist\*" root@31.97.199.20:/var/www/html/accountsmasterportal/
 
 Backend server/ (excluding node_modules) /opt/accountsmaster/server/
-scp -r "C:\xampp\htdocs\projects\accountsmaster\server\deploy" root@31.97.199.20:/opt/accountsmaster/server/
+scp -r "C:\xampp\htdocs\projects\accountsmaster\server\deploy\*" root@31.97.199.20:/opt/accountsmaster/server/
 
 # On Ubuntu, create the directories first
 
