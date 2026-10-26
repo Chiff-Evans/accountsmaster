@@ -354,10 +354,11 @@ export default function Members() {
             </Form.Item>
           </LabelField>
 
-          <LabelField label="Is Human">
+          {/* Stored as members.is_human: Yes = a real member, No = an internal account. */}
+          <LabelField label="Rates and Targets Apply">
             <Form.Item
               name="is_human"
-              extra="Choose No for accounts that track things like interest or taxes — they aren't held to the target/rates."
+              extra="Choose No for accounts that — contribution rates and targets won't apply, and nothing is auto-calculated for their transactions."
               style={{ marginBottom: 20 }}
             >
               <Radio.Group>
