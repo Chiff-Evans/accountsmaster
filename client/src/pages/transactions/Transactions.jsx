@@ -348,7 +348,7 @@ export default function Transactions() {
               showIcon
               style={{ marginBottom: 20 }}
               message="Internal account — nothing is calculated"
-              description="Rates and targets don't apply to internal accounts (interest, taxes, …), so From/To dates and credit/arrears aren't worked out. Enter the dates yourself if needed."
+              description="Rates and targets don't apply to internal accounts. So From/To dates and credit/arrears aren't worked out. Enter the dates yourself if needed."
             />
           )}
           {!suggesting && suggestion && !suggestion.error && !suggestion.internal && !suggestion.available && (
