@@ -16,7 +16,9 @@
 --     no contributions. The system accounts "Credit Interest" and
 --     "Deductions Done" ARE migrated, so the interest/deduction entries stay
 --     on the books — as internal accounts (is_human = 0, from the legacy
---     is_human flag), which aren't held to the target.
+--     is_human flag), which aren't held to the target. The internal account
+--     named like "interest" becomes the Interest Account and the one named
+--     like "deduction"/"tax" the Deductions Account (portal Group Fund).
 --   * 168 transactions (ids 1–168, TRN-00001 … TRN-00168) in legacy
 --     contribution id order, so legacy #N becomes id N / TRN-0000N,
 --     as MIGRATED records: dates kept exactly as recorded, no rate snapshot,
@@ -77,6 +79,12 @@ CALL `legacy_migration_guard`();
 DROP PROCEDURE `legacy_migration_guard`;
 
 -- ── 1. Columns this script fills — added only if missing ──
+SET @ddl := IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'is_interest_account') = 0,
+  'ALTER TABLE `members` ADD COLUMN `is_interest_account` TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN `is_deductions_account` TINYINT(1) NOT NULL DEFAULT 0',
+  'DO 0');
+PREPARE ddl FROM @ddl; EXECUTE ddl; DEALLOCATE PREPARE ddl;
+
 SET @ddl := IF((SELECT COUNT(*) FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'is_human') = 0,
   'ALTER TABLE `members` ADD COLUMN `is_human` TINYINT(1) NOT NULL DEFAULT 1 AFTER `other_details`',
@@ -476,7 +484,8 @@ START TRANSACTION;
 -- ── 5. Members (ids 1..n in legacy order; Blocked members are skipped) ──
 INSERT INTO `members`
   (`legacy_id`, `member_ref_no`, `member_name`, `firstname`, `lastname`, `position_id`, `gender_id`, `id_number`,
-   `phone`, `email`, `reg_date`, `reg_fee`, `other_details`, `is_human`, `status`, `workflow_id`, `workflow_stage_id`)
+   `phone`, `email`, `reg_date`, `reg_fee`, `other_details`, `is_human`, `is_interest_account`, `is_deductions_account`,
+   `status`, `workflow_id`, `workflow_stage_id`)
 SELECT
   l.id,
   CONCAT(rn.prefix,
@@ -496,6 +505,8 @@ SELECT
   CAST(NULLIF(TRIM(l.reg_fee), '') AS DECIMAL(12,2)),
   NULLIF(NULLIF(TRIM(l.other_details), ''), 'N/A'),
   IF(LOWER(TRIM(l.is_human)) = 'false', 0, 1),
+  IF(LOWER(TRIM(l.is_human)) = 'false' AND LOWER(l.name) LIKE '%interest%', 1, 0),
+  IF(LOWER(TRIM(l.is_human)) = 'false' AND (LOWER(l.name) LIKE '%deduct%' OR LOWER(l.name) LIKE '%tax%'), 1, 0),
   CASE l.status WHEN 'Active' THEN 'active' WHEN 'Withdrawn' THEN 'inactive' ELSE 'inactive' END,
   wf.id,
   CASE l.status WHEN 'Withdrawn' THEN COALESCE(st_withdrawn.id, st_approved.id) ELSE st_approved.id END

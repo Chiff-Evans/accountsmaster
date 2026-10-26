@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Modal, Form, Input, InputNumber, Select, DatePicker, Tag, Button, Dropdown,
-  message, Typography, Popover, Checkbox, Spin, Space, Radio,
+  message, Typography, Popover, Checkbox, Spin, Space, Radio, Switch,
 } from 'antd';
 import dayjs from 'dayjs';
 import {
@@ -41,6 +41,8 @@ export default function Members() {
   const [stages, setStages] = useState([]);
   const [stageFilter, setStageFilter] = useState(null);
   const [form]    = Form.useForm();
+  // Interest / deductions switches only apply to internal accounts.
+  const isHumanWatch = Form.useWatch('is_human', form);
   const [pwdForm] = Form.useForm();
 
   const [positions, setPositions] = useState([]); // parameter text_id 'parties-positions'
@@ -88,6 +90,9 @@ export default function Members() {
         reg_fee:       vals.reg_fee ?? null,
         other_details: vals.other_details || null,
         is_human:      vals.is_human !== false,
+        // Only internal accounts can be a Group Fund source (the API enforces it too).
+        is_interest_account:   vals.is_human === false && !!vals.is_interest_account,
+        is_deductions_account: vals.is_human === false && !!vals.is_deductions_account,
       };
       if (editing) payload.status = vals.status || 'active';
 
@@ -257,12 +262,20 @@ export default function Members() {
             gender_id:   genders.find(g => g.is_default)?.id,
             reg_date:    dayjs(),
             is_human:    true,
+            is_interest_account:   false,
+            is_deductions_account: false,
           });
           setOpen(true);
         }}
         onEdit={r => {
           setEditing(r);
-          form.setFieldsValue({ ...r, reg_date: r.reg_date ? dayjs(r.reg_date) : null, is_human: r.is_human !== 0 });
+          form.setFieldsValue({
+            ...r,
+            reg_date: r.reg_date ? dayjs(r.reg_date) : null,
+            is_human: r.is_human !== 0,
+            is_interest_account: !!r.is_interest_account,
+            is_deductions_account: !!r.is_deductions_account,
+          });
           setOpen(true);
         }}
         onDelete={async r => {
@@ -364,6 +377,30 @@ export default function Members() {
               </Radio.Group>
             </Form.Item>
           </LabelField>
+
+          {/* Internal accounts can be the source of the portal's Group Fund figures. */}
+          {isHumanWatch === false && (
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 20 }}>
+              <Form.Item
+                name="is_interest_account"
+                valuePropName="checked"
+                label="Interest Account"
+                tooltip="Its deposits are the Interest figure members see in the portal, and its transactions make up the Interest statement."
+                style={{ marginBottom: 0 }}
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item
+                name="is_deductions_account"
+                valuePropName="checked"
+                label="Deductions Account"
+                tooltip="Its withdrawals are the Deductions / Taxes figure members see in the portal, and its transactions make up that statement."
+                style={{ marginBottom: 0 }}
+              >
+                <Switch />
+              </Form.Item>
+            </div>
+          )}
 
           {editing && (
             <LabelField label="Status">

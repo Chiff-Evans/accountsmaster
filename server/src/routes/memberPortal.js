@@ -8,6 +8,7 @@ const { notifyAdmins, mountNotificationRoutes } = require('../helpers/notify');
 const { mountPushRoutes } = require('../utils/pushNotify');
 const { sendVerificationCode, verifyCode, isEmailVerified } = require('../helpers/emailVerification');
 const { depositSum, withdrawalSum } = require('../helpers/transactionTypes');
+const { fundFigures, fundStatement, getPortalSettings } = require('../helpers/fundSummary');
 const { encodeId, decodeId } = require('../utils/hashids');
 
 /* Record ids leave the portal API hashed (e.g. /transactions/Xk3pQa), so
@@ -313,6 +314,41 @@ router.get('/statement', async (req, res, next) => {
       overpayment: target ? Math.max(net - targetCents, 0) / 100 : null,
       percent: target && targetCents > 0 ? Math.min(Math.round((Math.max(net, 0) / targetCents) * 1000) / 10, 100) : null,
     });
+  } catch (err) { next(err); }
+});
+
+/* ── GROUP FUND — group-wide figures staff chose to share (Configurations >
+   Portal Settings). Only the switched-on figures are sent: a hidden figure
+   never leaves the server, so it can't be read from the browser either. ── */
+router.get('/fund-summary', async (req, res, next) => {
+  try {
+    const settings = await getPortalSettings();
+    if (!settings.show_total_balance && !settings.show_interest && !settings.show_deductions) return res.json({});
+    const f = await fundFigures();
+    const out = {};
+    if (settings.show_total_balance) out.total_balance = f.total_balance;
+    if (settings.show_interest && f.interest != null) out.interest = f.interest;
+    if (settings.show_deductions && f.deductions != null) out.deductions = f.deductions;
+    res.json(out);
+  } catch (err) { next(err); }
+});
+
+/* GET /api/member-portal/fund-statement/:kind — kind = interest | deductions.
+   The transactions behind that Group Fund figure. Gated by the same Portal
+   Settings switch as the figure itself, so a hidden figure can't be read
+   through its statement either. */
+const FUND_KINDS = {
+  interest:   { flag: 'is_interest_account',   setting: 'show_interest',   title: 'Interest' },
+  deductions: { flag: 'is_deductions_account', setting: 'show_deductions', title: 'Deductions / Taxes' },
+};
+router.get('/fund-statement/:kind', async (req, res, next) => {
+  try {
+    const kind = FUND_KINDS[req.params.kind];
+    if (!kind) return res.status(404).json({ message: 'Not found' });
+    const settings = await getPortalSettings();
+    if (!settings[kind.setting]) return res.status(403).json({ message: 'This statement is not available.' });
+    const { rows, totals } = await fundStatement(kind.flag);
+    res.json({ title: kind.title, rows, totals });
   } catch (err) { next(err); }
 });
 

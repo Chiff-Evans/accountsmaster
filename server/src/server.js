@@ -29,6 +29,7 @@ app.use('/api/member-statistics', require('./routes/memberStatistics'));
 app.use('/api/parameters',    require('./routes/parameters'));
 app.use('/api/targets',       require('./routes/targets'));
 app.use('/api/contribution-rates', require('./routes/contributionRates'));
+app.use('/api/portal-settings', require('./routes/portalSettings'));
 app.use('/api/expenditure',   require('./routes/expenditure'));
 app.use('/api/transactions',  require('./routes/transactions'));
 app.use('/api/dashboard',        require('./routes/dashboard'));
