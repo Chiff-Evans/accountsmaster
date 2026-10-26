@@ -195,7 +195,12 @@ export default function Transactions() {
         </Space>
       ) },
     { title: 'Member', dataIndex: 'member_name', key: 'member' },
-    { title: 'Type', dataIndex: 'transaction_type_name', key: 'type', mobileExpanded: true, render: v => v ? <Tag>{v}</Tag> : '—' },
+    { title: 'Type', dataIndex: 'transaction_type_name', key: 'type', mobileExpanded: true,
+      // Deposits green, withdrawals dark red (matched by name, like the server does).
+      render: v => !v ? '—'
+        : /^deposit/i.test(v) ? <Tag color="#389e0d">{v}</Tag>
+        : /^withdraw/i.test(v) ? <Tag color="#a8071a">{v}</Tag>
+        : <Tag>{v}</Tag> },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right', mobileAlign: 'right', render: fmtAmount },
     { title: 'From', dataIndex: 'from_date', key: 'from', mobileExpanded: true, render: fmtDate },
     { title: 'To', dataIndex: 'to_date', key: 'to', mobileExpanded: true, render: fmtDate },
@@ -209,8 +214,7 @@ export default function Transactions() {
 
   const memberOptions = members.map(m => ({
     value: m.id,
-    label: (m.member_ref_no ? `${m.member_name} (${m.member_ref_no})` : m.member_name)
-      + (m.is_human === 0 ? ' · Internal' : ''),
+    label: m.member_ref_no ? `${m.member_name} (${m.member_ref_no})` : m.member_name,
   }));
   const typeOptions = transactionTypes.map(t => ({ value: t.id, label: t.paramater_value }));
 

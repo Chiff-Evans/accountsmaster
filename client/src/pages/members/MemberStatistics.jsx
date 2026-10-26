@@ -48,11 +48,7 @@ export default function MemberStatistics() {
   const columns = [
     { title: 'Ref No', dataIndex: 'member_ref_no', key: 'ref', width: 130,
       render: v => v ? <Tag color="blue">{v}</Tag> : null },
-    { title: 'Member', dataIndex: 'member_name', key: 'name',
-      // Internal accounts (interest, taxes, ...) aren't held to the target.
-      render: (v, r) => r.is_human === 0
-        ? <span>{v} <Tag color="purple" style={{ marginLeft: 4 }}>Internal</Tag></span>
-        : v },
+    { title: 'Member', dataIndex: 'member_name', key: 'name' },
     { title: 'Total Deposits', dataIndex: 'deposits', key: 'deposits', align: 'right', mobileAlign: 'right', render: fmtAmount },
     { title: 'Total Withdrawals', dataIndex: 'withdrawals', key: 'withdrawals', align: 'right', mobileAlign: 'right', render: fmtAmount },
     { title: 'Balance', dataIndex: 'balance', key: 'balance', align: 'right', mobileAlign: 'right',

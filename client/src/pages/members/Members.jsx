@@ -169,10 +169,7 @@ export default function Members() {
   const allColumns = [
     { title: 'Ref No',   dataIndex: 'member_ref_no', key: 'ref', width: 110,
       render: v => <Tag color="blue">{v}</Tag> },
-    { title: 'Name',     dataIndex: 'member_name', key: 'name',
-      render: (v, r) => r.is_human === 0
-        ? <Space size={4} wrap>{v}<Tag color="purple" style={{ margin: 0 }}>Internal</Tag></Space>
-        : v },
+    { title: 'Name',     dataIndex: 'member_name', key: 'name' },
     { title: 'Position', dataIndex: 'position_name', key: 'position', mobileExpanded: true,
       render: v => v ? <Tag>{v}</Tag> : null },
     { title: 'ID Number', dataIndex: 'id_number', key: 'idno', mobileExpanded: true },
