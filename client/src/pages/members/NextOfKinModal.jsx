@@ -129,7 +129,7 @@ export default function NextOfKinModal({ member, onClose }) {
             </Form.Item>
           </LabelField>
 
-          <LabelField label="ID Number">
+          <LabelField label="ID No.">
             <Form.Item name="id_number" style={{ marginBottom: 20 }}>
               <Input />
             </Form.Item>
