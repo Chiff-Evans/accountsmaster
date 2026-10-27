@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, Input, Select, Tag, message } from 'antd';
+import { Modal, Form, Input, Select, Tag, Popover, Checkbox, Button, message } from 'antd';
+import { TableOutlined } from '@ant-design/icons';
 import CrudTable from '../../components/common/CrudTable';
 import LabelField from '../../components/common/LabelField';
 import api from '../../api';
@@ -15,6 +16,7 @@ export default function NextOfKinModal({ member, onClose }) {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
+  const [hiddenCols, setHiddenCols] = useState(new Set(['idno', 'email']));
 
   const load = useCallback(async () => {
     if (!member) return;
@@ -66,7 +68,7 @@ export default function NextOfKinModal({ member, onClose }) {
     } finally { setSaving(false); }
   };
 
-  const columns = [
+  const allColumns = [
     { title: 'Ref No', dataIndex: 'kin_ref_no', key: 'ref', width: 110, render: v => v ? <Tag color="blue">{v}</Tag> : null },
     { title: 'Name', dataIndex: 'kin_name', key: 'name' },
     { title: 'Relationship', dataIndex: 'relationship_name', key: 'rel', render: v => v ? <Tag>{v}</Tag> : '—' },
@@ -74,6 +76,31 @@ export default function NextOfKinModal({ member, onClose }) {
     { title: 'Phone No.', dataIndex: 'phone', key: 'phone', mobileAlign: 'right' },
     { title: 'Email', dataIndex: 'email', key: 'email', mobileExpanded: true },
   ];
+  const columns = allColumns.filter(c => !hiddenCols.has(c.key));
+
+  const colToggle = (
+    <Popover
+      title="Show / hide columns"
+      trigger="click"
+      content={
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 150 }}>
+          {allColumns.map(c => (
+            <Checkbox
+              key={c.key}
+              checked={!hiddenCols.has(c.key)}
+              onChange={e => setHiddenCols(prev => {
+                const next = new Set(prev);
+                e.target.checked ? next.delete(c.key) : next.add(c.key);
+                return next;
+              })}
+            >{c.title}</Checkbox>
+          ))}
+        </div>
+      }
+    >
+      <Button icon={<TableOutlined />} />
+    </Popover>
+  );
 
   return (
     <>
@@ -99,6 +126,7 @@ export default function NextOfKinModal({ member, onClose }) {
           }}
           onRefresh={load}
           hidePagination
+          extra={colToggle}
           height={360}
           searchPlaceholder="Search next of kin..."
         />
